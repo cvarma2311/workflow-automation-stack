@@ -1,0 +1,15 @@
+[Unit]
+Description=Prefect Server
+After=network-online.target
+
+[Service]
+Type=simple
+Environment=PREFECT_API_URL={{ prefect_api_host }}/api
+Environment=PATH={{ prefect_install_venv }}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/opt/spark/bin
+WorkingDirectory={{ prefect_home }}
+ExecStart={{ prefect_install_venv }}/bin/prefect server start
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,28 @@
+# ===== Spark master (Standalone) =====
+spark.master=spark://{{ spark_master_host }}:{{ spark_master_port }}
+
+# ===== Iceberg JDBC catalog (PostgreSQL) =====
+spark.sql.catalog.{{ catalog_name }}=org.apache.iceberg.spark.SparkCatalog
+spark.sql.catalog.{{ catalog_name }}.type=jdbc
+spark.sql.catalog.{{ catalog_name }}.uri={{ pg_jdbc_uri }}
+spark.sql.catalog.{{ catalog_name }}.jdbc.user={{ pg_user }}
+spark.sql.catalog.{{ catalog_name }}.jdbc.password={{ pg_password }}
+spark.sql.catalog.{{ catalog_name }}.warehouse={{ warehouse_uri }}
+
+# ===== S3A to MinIO (TLS) =====
+spark.hadoop.fs.s3a.endpoint={{ s3a_endpoint }}
+spark.hadoop.fs.s3a.path.style.access=true
+spark.hadoop.fs.s3a.connection.ssl.enabled=true
+spark.hadoop.fs.s3a.access.key={{ s3a_access_key }}
+spark.hadoop.fs.s3a.secret.key={{ s3a_secret_key }}
+
+# Trust self-signed MinIO cert (imported into cacerts)
+spark.driver.extraJavaOptions=-Djavax.net.ssl.trustStore={{ java_cacerts_path }} -Djavax.net.ssl.trustStorePassword={{ java_cacerts_pass }}
+spark.executor.extraJavaOptions=-Djavax.net.ssl.trustStore={{ java_cacerts_path }} -Djavax.net.ssl.trustStorePassword={{ java_cacerts_pass }}
+
+# Reasonable S3A tuning (adjust to your infra)
+spark.hadoop.fs.s3a.fast.upload=true
+spark.hadoop.fs.s3a.multipart.size=64M
+spark.hadoop.fs.s3a.multipart.threshold=64M
+spark.hadoop.fs.s3a.connection.maximum=256
+spark.hadoop.fs.s3a.threads.max=256

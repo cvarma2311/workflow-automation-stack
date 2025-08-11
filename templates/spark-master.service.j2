@@ -1,0 +1,15 @@
+[Unit]
+Description=Spark Standalone Master
+After=network-online.target
+
+[Service]
+Type=simple
+Environment=JAVA_HOME={{ java_home }}
+Environment=SPARK_HOME={{ spark_root }}
+ExecStart={{ spark_root }}/sbin/start-master.sh --host {{ spark_master_host }} --port {{ spark_master_port }} --webui-port {{ spark_master_webui_port }}
+ExecStop={{ spark_root }}/sbin/stop-master.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

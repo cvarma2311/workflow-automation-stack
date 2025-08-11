@@ -1,0 +1,52 @@
+from prefect import flow, task
+from pyspark.sql import SparkSession
+
+def spark():
+    return (
+        SparkSession.builder
+        .appName("IcebergPipeline")
+        # Run on Spark Standalone master
+        .config("spark.master", "spark://{{ spark_master_host }}:{{ spark_master_port }}")
+        # Iceberg (JDBC catalog in Postgres)
+        .config("spark.sql.catalog.{{ catalog_name }}", "org.apache.iceberg.spark.SparkCatalog")
+        .config("spark.sql.catalog.{{ catalog_name }}.type", "jdbc")
+        .config("spark.sql.catalog.{{ catalog_name }}.uri", "{{ pg_jdbc_uri }}")
+        .config("spark.sql.catalog.{{ catalog_name }}.jdbc.user", "{{ pg_user }}")
+        .config("spark.sql.catalog.{{ catalog_name }}.jdbc.password", "{{ pg_password }}")
+        .config("spark.sql.catalog.{{ catalog_name }}.warehouse", "{{ warehouse_uri }}")
+        # S3A to MinIO (TLS)
+        .config("spark.hadoop.fs.s3a.endpoint", "{{ s3a_endpoint }}")
+        .config("spark.hadoop.fs.s3a.path.style.access", "true")
+        .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "true")
+        .config("spark.hadoop.fs.s3a.access.key", "{{ s3a_access_key }}")
+        .config("spark.hadoop.fs.s3a.secret.key", "{{ s3a_secret_key }}")
+        # Trust the self-signed MinIO cert
+        .config("spark.driver.extraJavaOptions", "-Djavax.net.ssl.trustStore={{ java_cacerts_path }} -Djavax.net.ssl.trustStorePassword={{ java_cacerts_pass }}")
+        .config("spark.executor.extraJavaOptions", "-Djavax.net.ssl.trustStore={{ java_cacerts_path }} -Djavax.net.ssl.trustStorePassword={{ java_cacerts_pass }}")
+        .getOrCreate()
+    )
+
+@task
+def filter_active_employees():
+    s = spark()
+    data = [(1,"Alice","Engineering","active"),
+            (2,"Bob","HR","inactive"),
+            (3,"Charlie","Engineering","active")]
+    df = s.createDataFrame(data, ["id","name","department","status"])
+    df_active = df.filter("status = 'active'")
+    df_active.writeTo("{{ catalog_name }}.db.active_employees").createOrReplace()
+
+@task
+def group_by_department():
+    s = spark()
+    df = s.read.table("{{ catalog_name }}.db.active_employees")
+    out = df.groupBy("department").count()
+    out.writeTo("{{ catalog_name }}.db.department_counts").createOrReplace()
+
+@flow(name="{{ prefect_flow_name }}")
+def employee_pipeline():
+    filter_active_employees()
+    group_by_department()
+
+if __name__ == "__main__":
+    employee_pipeline()

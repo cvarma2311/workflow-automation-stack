@@ -1,0 +1,15 @@
+[Unit]
+Description=Spark Standalone Worker
+After=network-online.target spark-master.service
+
+[Service]
+Type=simple
+Environment=JAVA_HOME={{ java_home }}
+Environment=SPARK_HOME={{ spark_root }}
+ExecStart={{ spark_root }}/sbin/start-worker.sh spark://{{ spark_master_host }}:{{ spark_master_port }} --webui-port {{ spark_worker_webui_port }}
+ExecStop={{ spark_root }}/sbin/stop-worker.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

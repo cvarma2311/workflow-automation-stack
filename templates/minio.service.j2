@@ -1,0 +1,17 @@
+[Unit]
+Description=MinIO Distributed Object Storage
+After=network.target
+
+[Service]
+User=root
+Group=root
+EnvironmentFile=/etc/minio.env
+ExecStart=/usr/local/bin/minio server \
+{% for h in minio_cluster_hosts -%}
+  http://{{ h }}{{ minio_data_dir }} {% endfor %} \
+  --console-address :{{ minio_console_port }}
+Restart=always
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

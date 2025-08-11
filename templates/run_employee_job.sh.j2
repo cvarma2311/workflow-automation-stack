@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SPARK_HOME="{{ spark_root }}"
+APP_NAME="IcebergEmployeeJob"
+
+"$SPARK_HOME/bin/spark-submit" \
+  --master spark://{{ spark_master_host }}:{{ spark_master_port }} \
+  --name "$APP_NAME" \
+  --conf "spark.sql.catalog.{{ catalog_name }}=org.apache.iceberg.spark.SparkCatalog" \
+  --conf "spark.sql.catalog.{{ catalog_name }}.type=jdbc" \
+  --conf "spark.sql.catalog.{{ catalog_name }}.uri={{ pg_jdbc_uri }}" \
+  --conf "spark.sql.catalog.{{ catalog_name }}.jdbc.user={{ pg_user }}" \
+  --conf "spark.sql.catalog.{{ catalog_name }}.jdbc.password={{ pg_password }}" \
+  --conf "spark.sql.catalog.{{ catalog_name }}.warehouse={{ warehouse_uri }}" \
+  --conf "spark.hadoop.fs.s3a.endpoint={{ s3a_endpoint }}" \
+  --conf "spark.hadoop.fs.s3a.path.style.access=true" \
+  --conf "spark.hadoop.fs.s3a.connection.ssl.enabled=true" \
+  --conf "spark.hadoop.fs.s3a.access.key={{ s3a_access_key }}" \
+  --conf "spark.hadoop.fs.s3a.secret.key={{ s3a_secret_key }}" \
+  --conf "spark.driver.extraJavaOptions=-Djavax.net.ssl.trustStore={{ java_cacerts_path }} -Djavax.net.ssl.trustStorePassword={{ java_cacerts_pass }}" \
+  --conf "spark.executor.extraJavaOptions=-Djavax.net.ssl.trustStore={{ java_cacerts_path }} -Djavax.net.ssl.trustStorePassword={{ java_cacerts_pass }}" \
+  --jars "{{ spark_jars_dir }}/iceberg-spark-runtime-3.5_2.12-{{ iceberg_spark_runtime_version }}.jar,{{ spark_jars_dir }}/postgresql-{{ pg_jdbc_version }}.jar,{{ spark_jars_dir }}/spark-hadoop-cloud_2.12-{{ spark_version }}.jar" \
+  - <<'PYAPP'
+from pyspark.sql import SparkSession
+s = (SparkSession.builder
+     .appName("EmployeeJob")
+     .getOrCreate())
+
+data = [(1,"Alice","Engineering","active"),
+        (2,"Bob","HR","inactive"),
+        (3,"Charlie","Engineering","active")]
+df = s.createDataFrame(data, ["id","name","department","status"])
+df_active = df.filter("status = 'active'")
+df_active.writeTo("{{ catalog_name }}.db.active_employees_cli").createOrReplace()
+df = s.read.table("{{ catalog_name }}.db.active_employees_cli")
+out = df.groupBy("department").count()
+out.writeTo("{{ catalog_name }}.db.department_counts_cli").createOrReplace()
+print("Wrote tables: active_employees_cli, department_counts_cli")
+PYAPP
+echo "Spark job completed."
