@@ -1,0 +1,61 @@
+---
+- name: Reset UFW to defaults
+  ansible.builtin.ufw:
+    state: reset
+
+- name: Default deny incoming, allow outgoing
+  ansible.builtin.ufw:
+    direction: incoming
+    policy: deny
+- ansible.builtin.ufw:
+    direction: outgoing
+    policy: allow
+
+- name: Allow SSH
+  ansible.builtin.ufw:
+    rule: allow
+    port: "{{ ssh_port }}"
+    proto: tcp
+    src: "{{ (admin_allow_cidr if admin_allow_cidr != 'any' else None) | default(omit) }}"
+
+- name: Open MinIO (TLS ports same numbers)
+  ansible.builtin.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+    src: "{{ (admin_allow_cidr if admin_allow_cidr != 'any' else None) | default(omit) }}"
+  loop:
+    - "{{ minio_api_port }}"       # 9000
+    - "{{ minio_console_port }}"   # 9001
+
+- name: Open PostgreSQL (only on postgres host)
+  ansible.builtin.ufw:
+    rule: allow
+    port: "{{ pg_port }}"
+    proto: tcp
+    src: "{{ (admin_allow_cidr if admin_allow_cidr != 'any' else None) | default(omit) }}"
+  when: "'postgres' in group_names"
+
+- name: Open Prefect UI/API (only on prefect host)
+  ansible.builtin.ufw:
+    rule: allow
+    port: "{{ prefect_port }}"
+    proto: tcp
+    src: "{{ (admin_allow_cidr if admin_allow_cidr != 'any' else None) | default(omit) }}"
+  when: "'prefect_server' in group_names"
+
+- name: Open Spark master RPC & UIs
+  ansible.builtin.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+    src: "{{ (admin_allow_cidr if admin_allow_cidr != 'any' else None) | default(omit) }}"
+  loop:
+    - "{{ spark_master_port }}"         # 7077
+    - "{{ spark_master_webui_port }}"   # 8080
+    - "{{ spark_worker_webui_port }}"   # 8081
+
+- name: Enable UFW
+  ansible.builtin.ufw:
+    state: enabled
+    logging: on

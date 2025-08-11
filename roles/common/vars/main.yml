@@ -16,11 +16,9 @@ minio_root_password: "minioadmin"
 minio_data_dir: "/mnt/minio/data"
 minio_api_port: 9000
 minio_console_port: 9001
-minio_primary_host: "1.1.1.1"                # for endpoint URL + bucket creation
+minio_primary_host: "150.230.139.113"                # for endpoint URL + bucket creation
 minio_cluster_hosts:
-  - "1.1.1.1"
-  - "2.2.2.2"
-  - "3.3.3.3"
+  - "150.230.139.113"
 minio_bucket: "iceberg-warehouse"
 minio_bin_url: "https://dl.min.io/server/minio/release/linux-amd64/minio"
 mc_bin_url: "https://dl.min.io/client/mc/release/linux-amd64/mc"
@@ -29,7 +27,7 @@ mc_bin_url: "https://dl.min.io/client/mc/release/linux-amd64/mc"
 enable_minio_tls: true
 minio_cert_dir: "/etc/minio/certs"
 minio_cert_common_name: "minio.local"
-minio_cert_alt_names: ["1.1.1.1","2.2.2.2","3.3.3.3","minio.local"]
+minio_cert_alt_names: ["150.230.139.113","minio.local"]
 minio_tls_use_self_signed: true          # set to false if you supply real certs below
 minio_public_crt_src: ""                 # e.g., "files/minio.crt" if using your own
 minio_private_key_src: ""                # e.g., "files/minio.key"
@@ -47,7 +45,7 @@ spark_root: "/opt/spark"
 spark_jars_dir: "/opt/spark/jars"
 
 # ==== Spark Standalone ====
-spark_master_host: "1.1.1.1"
+spark_master_host: "150.230.139.113"
 spark_master_port: 7077
 spark_master_webui_port: 8080
 spark_worker_webui_port: 8081
@@ -66,7 +64,7 @@ pg_jdbc_uri: "jdbc:postgresql://{{ minio_primary_host }}:{{ pg_port }}/{{ pg_db 
 prefect_install_venv: "/opt/prefect/venv"
 prefect_home: "/opt/prefect"
 prefect_queue: "default"
-prefect_api_host: "http://1.1.1.1:4200"   # Prefect UI/API
+prefect_api_host: "http://150.230.139.113:4200"   # Prefect UI/API
 prefect_version: ""                       # "" = latest, or pin e.g. "2.20.8"
 prefect_flow_name: "employee_pipeline"
 prefect_deployment_name: "EmployeePipeline"

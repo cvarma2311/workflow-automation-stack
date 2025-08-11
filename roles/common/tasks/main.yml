@@ -1,0 +1,22 @@
+---
+- name: Install base packages
+  ansible.builtin.apt:
+    name:
+      - wget
+      - curl
+      - tar
+      - unzip
+      - gnupg
+      - ca-certificates
+      - python3-venv
+      - python3-pip
+      - ufw
+      - "{{ java_pkg }}"
+    state: present
+    update_cache: true
+
+- name: Ensure MinIO data dir exists
+  ansible.builtin.file:
+    path: "{{ minio_data_dir }}"
+    state: directory
+    mode: "0755"
