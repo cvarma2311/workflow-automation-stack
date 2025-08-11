@@ -27,7 +27,7 @@ workflow-automation-stack/
 │  │  └─ vars/main.yml                # Global versions, credentials, ports, and stack config
 │  ├─ minio/                          # MinIO installation and configuration
 │  │  ├─ tasks/main.yml
-│  │  └─ templates/minio.env.j2
+│  │  ├─ templates/minio.env.j2
 │  │  └─ templates/minio.service.j2
 │  ├─ postgresql/                     # PostgreSQL installation and configuration
 │  │  └─ tasks/main.yml
@@ -81,6 +81,8 @@ workflow-automation-stack/
 
 Ansible connects to your VMs via SSH. For a smooth, passwordless experience, it's highly recommended to set up SSH key-based authentication.
 
+**Scenario A: You have an SSH key pair (e.g., `id_rsa` and `id_rsa.pub`) and want to copy the public key to your VMs.**
+
 1.  **Generate an SSH Key Pair (if you don't have one):**
     Open a terminal on your **control node** and run:
     ```bash
@@ -99,12 +101,56 @@ Ansible connects to your VMs via SSH. For a smooth, passwordless experience, it'
     *   You will be prompted for the VM's password (the only time you'll need it for SSH).
     *   If `ssh-copy-id` is not available, you can manually copy the content of `~/.ssh/id_rsa.pub` and append it to `~/.ssh/authorized_keys` on each VM.
 
-3.  **Verify SSH Connection:**
-    Test that you can now SSH into your VMs without being prompted for a password:
+**Scenario B: You only have a private SSH key file (e.g., `my_vm_key.key`) and no password for the VM.**
+
+1.  **Ensure your private key has the correct permissions:**
+    Your private key file (e.g., `my_vm_key.key`) should only be readable by you.
     ```bash
-    ssh user@150.230.139.113
-    ssh user@129.159.224.74
+    chmod 400 /path/to/your/my_vm_key.key
     ```
+
+2.  **Copy your Public SSH Key to your VMs using your private key:**
+    You can use `ssh-copy-id` with the `-i` flag to specify your private key for authentication. This will use your key for authentication instead of prompting for a password.
+
+    ```bash
+    ssh-copy-id -i /path/to/your/my_vm_key.key user@150.230.139.113
+    ssh-copy-id -i /path/to/your/my_vm_key.key user@129.159.224.74
+    ```
+    *   Replace `/path/to/your/my_vm_key.key` with the actual path to your private key file.
+    *   Replace `user` with your VM's username.
+    *   `ssh-copy-id` will automatically find the corresponding public key (`my_vm_key.key.pub` if it exists in the same directory) or generate it from the private key if it doesn't.
+
+    **Alternatively, manually copy the public key if `ssh-copy-id` is not suitable:**
+    *   **Extract the public key from your private key (if you don't have a `.pub` file):**
+        ```bash
+        ssh-keygen -y -f /path/to/your/my_vm_key.key > /path/to/your/my_vm_key.key.pub
+        ```
+    *   **Copy the public key to the VM:**
+        Use `ssh` with your private key to execute commands on the remote VM.
+        ```bash
+        ssh -i /path/to/your/my_vm_key.key user@150.230.139.113 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo \"$(cat /path/to/your/my_vm_key.key.pub)\" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+        ssh -i /path/to/your/my_vm_key.key user@129.159.224.74 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo \"$(cat /path/to/your/my_vm_key.key.pub)\" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+        ```
+        This command:
+        *   Creates the `.ssh` directory if it doesn't exist.
+        *   Sets correct permissions for `.ssh`.
+        *   Appends your public key to `authorized_keys`.
+        *   Sets correct permissions for `authorized_keys`.
+
+**After either Scenario A or B:**
+
+3.  **Verify SSH Connection:**
+    Test that you can now SSH into your VMs without being prompted for a password.
+    *   If you used `id_rsa` (Scenario A):
+        ```bash
+        ssh user@150.230.139.113
+        ssh user@129.159.224.74
+        ```
+    *   If you used a specific private key (Scenario B):
+        ```bash
+        ssh -i /path/to/your/my_vm_key.key user@150.230.139.113
+        ssh -i /path/to/your/my_vm_key.key user@129.159.224.74
+        ```
     If you connect without a password prompt, you're all set!
 
 ---
@@ -126,6 +172,10 @@ Ansible connects to your VMs via SSH. For a smooth, passwordless experience, it'
     From the root directory of this project on your **control node**:
     ```bash
     ansible-playbook -i inventory.ini site.yml
+    ```
+    **Important Note:** If you are using a private key other than the default `~/.ssh/id_rsa` (i.e., Scenario B in SSH setup), you'll need to tell Ansible to use your private key for authentication when running the playbook:
+    ```bash
+    ansible-playbook -i inventory.ini site.yml --private-key /path/to/your/my_vm_key.key
     ```
     Ansible will connect to your VMs via SSH and provision them according to the playbook.
 
