@@ -78,9 +78,9 @@ Add the following task into your `site.yml` within the “Install Prefect, confi
 
 ```yaml
 - name: Install Python requirements into Prefect venv
-  command: "{{ prefect_install_venv }}/bin/pip install -r /root/iceberg-stack/requirements.txt"
+  command: "{{ prefect_install_venv }}/bin/pip install -r /root/workflow-automation-stack/requirements.txt"
   args:
-    chdir: "/root/iceberg-stack"
+    chdir: "/root/workflow-automation-stack"
 ```
 
 Adjust the `chdir` path to wherever the repository lives on the Prefect node.
@@ -95,7 +95,7 @@ Adjust the `chdir` path to wherever the repository lives on the Prefect node.
    ```bash
    sudo apt update && sudo apt install -y python3-pip git sshpass
    pip install ansible==9.*
-   git clone <your_repo_url> && cd iceberg-stack
+   git clone <your_repo_url> && cd workflow-automation-stack
    ```
 
 2. **Put your three VM IPs** in `inventory.ini`. Ensure you can SSH into each VM.

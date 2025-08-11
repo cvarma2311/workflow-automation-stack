@@ -17,7 +17,7 @@ It also deploys:
 ## 1) Repository Layout
 
 ```
-iceberg-stack/
+workflow-automation-stack/
 ├─ inventory.ini                      # Ansible hosts (your 3 VM IPs)
 ├─ group_vars/
 │  └─ all.yml                         # Global versions, credentials, ports, and stack config
