@@ -1,0 +1,494 @@
+---
+- name: Common base (packages, java)
+  hosts: all
+  become: true
+  tasks:
+    - name: Install base packages
+      apt:
+        name:
+          - wget
+          - curl
+          - tar
+          - unzip
+          - gnupg
+          - ca-certificates
+          - python3-venv
+          - python3-pip
+          - ufw
+          - {{ java_pkg }}
+        state: present
+        update_cache: true
+
+    - name: Ensure MinIO data dir exists
+      file:
+        path: "{{ minio_data_dir }}"
+        state: directory
+        mode: "0755"
+
+- name: Install MinIO (distributed)
+  hosts: minio
+  become: true
+  tasks:
+    - name: Download MinIO server
+      get_url:
+        url: "{{ minio_bin_url }}"
+        dest: /usr/local/bin/minio
+        mode: "0755"
+
+    - name: Create /etc/minio.env
+      template:
+        src: minio.env.j2
+        dest: /etc/minio.env
+        mode: "0640"
+
+    - name: Create systemd unit for MinIO
+      template:
+        src: minio.service.j2
+        dest: /etc/systemd/system/minio.service
+        mode: "0644"
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: true
+
+    - name: Enable & start MinIO
+      systemd:
+        name: minio
+        state: started
+        enabled: true
+
+- name: Create warehouse bucket on primary MinIO node
+  hosts: "{{ minio_primary_host }}"
+  become: true
+  tasks:
+    - name: Download mc client
+      get_url:
+        url: "{{ mc_bin_url }}"
+        dest: /usr/local/bin/mc
+        mode: "0755"
+
+    - name: Wait for MinIO API to be reachable (HTTP or HTTPS health)
+      uri:
+        url: "http://localhost:{{ minio_api_port }}/minio/health/ready"
+        method: GET
+      register: minio_health
+      retries: 30
+      delay: 2
+      until: minio_health.status in [200, 301, 302, 403]
+
+    - name: Configure mc alias
+      shell: |
+        mc alias set localminio http://127.0.0.1:{{ minio_api_port }} {{ minio_root_user }} {{ minio_root_password }}
+      args:
+        creates: /root/.mc
+
+    - name: Create iceberg warehouse bucket
+      shell: |
+        mc ls localminio/{{ minio_bucket }} || mc mb localminio/{{ minio_bucket }}
+
+- name: Install PostgreSQL (catalog)
+  hosts: postgres
+  become: true
+  tasks:
+    - name: Install PostgreSQL
+      apt:
+        name:
+          - postgresql
+          - postgresql-contrib
+        state: present
+        update_cache: true
+
+    - name: Discover PG version directory
+      shell: "ls -1 /etc/postgresql | sort -n | tail -1"
+      register: pg_ver_dir
+
+    - name: Allow remote connections
+      lineinfile:
+        path: "/etc/postgresql/{{ pg_ver_dir.stdout }}/main/postgresql.conf"
+        regexp: "^#?listen_addresses =.*"
+        line: "listen_addresses = '{{ pg_listen_address }}'"
+
+    - name: Add pg_hba rule
+      lineinfile:
+        path: "/etc/postgresql/{{ pg_ver_dir.stdout }}/main/pg_hba.conf"
+        line: "host all all 0.0.0.0/0 md5"
+        create: no
+
+    - name: Restart PostgreSQL
+      systemd:
+        name: postgresql
+        state: restarted
+        enabled: true
+
+    - name: Create catalog DB and user
+      become_user: postgres
+      shell: |
+        psql -tc "SELECT 1 FROM pg_database WHERE datname='{{ pg_db }}'" | grep -q 1 || psql -c "CREATE DATABASE {{ pg_db }};"
+        psql -tc "SELECT 1 FROM pg_roles WHERE rolname='{{ pg_user }}'" | grep -q 1 || psql -c "CREATE USER {{ pg_user }} WITH ENCRYPTED PASSWORD '{{ pg_password }}';"
+        psql -c "GRANT ALL PRIVILEGES ON DATABASE {{ pg_db }} TO {{ pg_user }};"
+
+- name: Install Spark 3.5.6 + Iceberg + cloud jars
+  hosts: spark
+  become: true
+  tasks:
+    - name: Download Spark
+      get_url:
+        url: "https://archive.apache.org/dist/spark/spark-{{ spark_version }}/spark-{{ spark_version }}-bin-hadoop3.tgz"
+        dest: /tmp/spark.tgz
+        mode: "0644"
+
+    - name: Extract Spark
+      unarchive:
+        src: /tmp/spark.tgz
+        dest: /opt
+        remote_src: true
+        creates: "/opt/spark-{{ spark_version }}-bin-hadoop3"
+
+    - name: Symlink /opt/spark
+      file:
+        src: "/opt/spark-{{ spark_version }}-bin-hadoop3"
+        dest: "{{ spark_root }}"
+        state: link
+        force: true
+
+    - name: Ensure jars directory
+      file:
+        path: "{{ spark_jars_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Download Iceberg Spark runtime
+      get_url:
+        url: "https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/{{ iceberg_spark_runtime_version }}/iceberg-spark-runtime-3.5_2.12-{{ iceberg_spark_runtime_version }}.jar"
+        dest: "{{ spark_jars_dir }}/iceberg-spark-runtime-3.5_2.12-{{ iceberg_spark_runtime_version }}.jar"
+        mode: "0644"
+
+    - name: Download PostgreSQL JDBC
+      get_url:
+        url: "https://repo1.maven.org/maven2/org/postgresql/postgresql/{{ pg_jdbc_version }}/postgresql-{{ pg_jdbc_version }}.jar"
+        dest: "{{ spark_jars_dir }}/postgresql-{{ pg_jdbc_version }}.jar"
+        mode: "0644"
+
+    - name: Download spark-hadoop-cloud (S3A deps aligned to Spark)
+      get_url:
+        url: "https://repo1.maven.org/maven2/org/apache/spark/spark-hadoop-cloud_2.12/{{ spark_version }}/spark-hadoop-cloud_2.12-{{ spark_version }}.jar"
+        dest: "{{ spark_jars_dir }}/spark-hadoop-cloud_2.12-{{ spark_version }}.jar"
+        mode: "0644"
+
+    - name: Create Spark conf directory
+      file:
+        path: "{{ spark_root }}/conf"
+        state: directory
+        mode: "0755"
+
+    - name: Write spark-defaults.conf
+      template:
+        src: spark-defaults.conf.j2
+        dest: "{{ spark_root }}/conf/spark-defaults.conf"
+        mode: "0644"
+
+- name: Enable TLS for MinIO (certs + restart)
+  hosts: minio
+  become: true
+  vars:
+    openssl_conf_path: "/etc/ssl/minio_openssl.cnf"
+  tasks:
+    - name: Create MinIO cert dirs
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "{{ '0700' if item.endswith('/private') else '0755' }}"
+      loop:
+        - "{{ minio_cert_dir }}"
+        - "{{ minio_cert_dir }}/public"
+        - "{{ minio_cert_dir }}/private"
+
+    - name: Install provided TLS cert/key (if not self-signed)
+      when: enable_minio_tls and (not minio_tls_use_self_signed)
+      copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - { src: "{{ minio_public_crt_src }}", dest: "{{ minio_cert_dir }}/public.crt", mode: "0644" }
+        - { src: "{{ minio_private_key_src }}", dest: "{{ minio_cert_dir }}/private.key", mode: "0600" }
+
+    - name: Generate self-signed cert for MinIO (per node)
+      when: enable_minio_tls and minio_tls_use_self_signed
+      block:
+        - name: Write OpenSSL config with SANs
+          copy:
+            dest: "{{ openssl_conf_path }}"
+            mode: "0644"
+            content: |
+              [req]
+              default_bits       = 4096
+              prompt             = no
+              default_md         = sha256
+              req_extensions     = req_ext
+              distinguished_name = dn
+
+              [dn]
+              CN = {{ minio_cert_common_name }}
+
+              [req_ext]
+              subjectAltName = @alt_names
+
+              [alt_names]
+              {% for n in minio_cert_alt_names %}
+              DNS.{{ loop.index }} = {{ n }}
+              {% endfor %}
+
+        - name: Generate key
+          command: "openssl genrsa -out {{ minio_cert_dir }}/private.key 4096"
+          args:
+            creates: "{{ minio_cert_dir }}/private.key"
+
+        - name: Generate CSR
+          command: >
+            openssl req -new -key {{ minio_cert_dir }}/private.key
+            -out {{ minio_cert_dir }}/minio.csr
+            -config {{ openssl_conf_path }}
+          args:
+            creates: "{{ minio_cert_dir }}/minio.csr"
+
+        - name: Self-sign certificate
+          command: >
+            openssl x509 -req -in {{ minio_cert_dir }}/minio.csr
+            -signkey {{ minio_cert_dir }}/private.key
+            -out {{ minio_cert_dir }}/public.crt
+            -days 825
+            -extfile {{ openssl_conf_path }} -extensions req_ext
+          args:
+            creates: "{{ minio_cert_dir }}/public.crt"
+
+    - name: Restart MinIO to pick up TLS
+      systemd:
+        name: minio
+        state: restarted
+        enabled: true
+
+- name: Import MinIO TLS cert into Java truststore on Spark nodes
+  hosts: spark
+  become: true
+  tasks:
+    - name: Fetch MinIO public cert from primary host
+      shell: "openssl s_client -connect {{ minio_primary_host }}:{{ minio_api_port }} -servername {{ minio_cert_common_name }} < /dev/null 2>/dev/null | openssl x509 -outform PEM"
+      register: minio_cert_chain
+
+    - name: Write MinIO cert to temp file
+      copy:
+        dest: /tmp/minio-public.crt
+        mode: "0644"
+        content: "{{ minio_cert_chain.stdout }}"
+
+    - name: Import MinIO cert if not already present
+      shell: >
+        keytool -list -keystore "{{ java_cacerts_path }}" -storepass "{{ java_cacerts_pass }}" -alias "{{ minio_cert_alias }}" ||
+        keytool -importcert -noprompt -trustcacerts
+        -alias "{{ minio_cert_alias }}"
+        -file /tmp/minio-public.crt
+        -keystore "{{ java_cacerts_path }}"
+        -storepass "{{ java_cacerts_pass }}"
+
+- name: Configure Spark Standalone master (only on master host)
+  hosts: "{{ spark_master_host }}"
+  become: true
+  tasks:
+    - name: Drop spark-env.sh
+      template:
+        src: spark-env.sh.j2
+        dest: "{{ spark_root }}/conf/spark-env.sh"
+        mode: "0755"
+
+    - name: Create spark-master.service
+      template:
+        src: spark-master.service.j2
+        dest: /etc/systemd/system/spark-master.service
+        mode: "0644"
+
+    - name: Reload and start Spark master
+      systemd:
+        daemon_reload: true
+        name: spark-master
+        state: started
+        enabled: true
+
+- name: Configure Spark Standalone workers (all nodes)
+  hosts: spark
+  become: true
+  tasks:
+    - name: Create spark-worker.service
+      template:
+        src: spark-worker.service.j2
+        dest: /etc/systemd/system/spark-worker.service
+        mode: "0644"
+
+    - name: Reload and start Spark worker
+      systemd:
+        daemon_reload: true
+        name: spark-worker
+        state: started
+        enabled: true
+
+- name: Install Prefect, configure services, deploy flow
+  hosts: prefect
+  become: true
+  tasks:
+    - name: Create Prefect home & flow dirs
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ prefect_home }}"
+        - "{{ prefect_flow_dir }}"
+
+    - name: Create venv
+      command: "python3 -m venv {{ prefect_install_venv }}"
+      args:
+        creates: "{{ prefect_install_venv }}/bin/activate"
+
+    - name: Install Prefect
+      command: "{{ prefect_install_venv }}/bin/pip install {{ ('prefect==' + prefect_version) if prefect_version else 'prefect' }}"
+
+    - name: Drop employee flow file (wired to spark:// master)
+      template:
+        src: employee_flow.py.j2
+        dest: "{{ prefect_flow_file }}"
+        mode: "0644"
+
+    - name: Create Prefect server systemd unit
+      template:
+        src: prefect-server.service.j2
+        dest: /etc/systemd/system/prefect-server.service
+        mode: "0644"
+
+    - name: Create Prefect agent systemd unit
+      template:
+        src: prefect-agent.service.j2
+        dest: /etc/systemd/system/prefect-agent.service
+        mode: "0644"
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: true
+
+    - name: Enable & start Prefect server
+      systemd:
+        name: prefect-server
+        state: started
+        enabled: true
+
+    - name: Wait for Prefect API to be up
+      uri:
+        url: "{{ prefect_api_host }}/api/health"
+        method: GET
+        status_code: 200
+      register: pref_up
+      retries: 60
+      delay: 2
+      until: pref_up.status == 200
+
+    - name: Enable & start Prefect agent
+      systemd:
+        name: prefect-agent
+        state: started
+        enabled: true
+
+    - name: Build deployment
+      shell: |
+        source "{{ prefect_install_venv }}/bin/activate"
+        prefect deployment build "{{ prefect_flow_file }}:{{ prefect_flow_name }}" \
+          -n "{{ prefect_deployment_name }}" -q "{{ prefect_queue }}" \
+          -o "{{ prefect_home }}/{{ prefect_deployment_name }}.yaml"
+      args:
+        chdir: "{{ prefect_home }}"
+
+    - name: Apply deployment
+      shell: |
+        source "{{ prefect_install_venv }}/bin/activate"
+        prefect deployment apply "{{ prefect_home }}/{{ prefect_deployment_name }}.yaml"
+
+- name: Drop on-demand spark-submit job script on all Spark nodes
+  hosts: spark
+  become: true
+  tasks:
+    - name: Ensure job dir
+      file:
+        path: "{{ spark_job_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Drop run_employee_job.sh
+      template:
+        src: run_employee_job.sh.j2
+        dest: "{{ spark_job_script }}"
+        mode: "0755"
+
+- name: Configure UFW firewall (optional)
+  hosts: all
+  become: true
+  vars:
+    open_ports_common: ["{{ ssh_port }}"]
+  tasks:
+    - name: Reset UFW to defaults
+      ufw:
+        state: reset
+
+    - name: Default deny incoming, allow outgoing
+      ufw:
+        direction: incoming
+        policy: deny
+    - ufw:
+        direction: outgoing
+        policy: allow
+
+    - name: Allow SSH
+      ufw:
+        rule: allow
+        port: "{{ ssh_port }}"
+        proto: tcp
+        src: "{{ (admin_allow_cidr if admin_allow_cidr != 'any' else None) | default(omit) }}"
+
+    - name: Open MinIO (TLS ports same numbers)
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+        src: "{{ (admin_allow_cidr if admin_allow_cidr != 'any' else None) | default(omit) }}"
+      loop:
+        - "{{ minio_api_port }}"       # 9000
+        - "{{ minio_console_port }}"   # 9001
+
+    - name: Open PostgreSQL (only on postgres host)
+      ufw:
+        rule: allow
+        port: "{{ pg_port }}"
+        proto: tcp
+        src: "{{ (admin_allow_cidr if admin_allow_cidr != 'any' else None) | default(omit) }}"
+      when: "'postgres' in group_names"
+
+    - name: Open Prefect UI/API (only on prefect host)
+      ufw:
+        rule: allow
+        port: "{{ prefect_port }}"
+        proto: tcp
+        src: "{{ (admin_allow_cidr if admin_allow_cidr != 'any' else None) | default(omit) }}"
+      when: "'prefect' in group_names"
+
+    - name: Open Spark master RPC & UIs
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+        src: "{{ (admin_allow_cidr if admin_allow_cidr != 'any' else None) | default(omit) }}"
+      loop:
+        - "{{ spark_master_port }}"         # 7077
+        - "{{ spark_master_webui_port }}"   # 8080
+        - "{{ spark_worker_webui_port }}"   # 8081
+
+    - name: Enable UFW
+      ufw:
+        state: enabled
+        logging: on
