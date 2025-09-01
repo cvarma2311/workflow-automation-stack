@@ -81,7 +81,7 @@ workflow-automation-stack/
 
 Ansible connects to your VMs via SSH. For a smooth, passwordless experience, it's highly recommended to set up SSH key-based authentication.
 
-**Scenario A: You have an SSH key pair (e.g., `id_rsa` and `id_rsa.pub`) and want to copy the public key to your VMs.**
+**Scenario A: You have an SSH key pair (e.g., `id_rsa` and `id_rsa.pub`) and want to copy the public key to your VMs.** (IGNORE THIS SCENARIO IN OUR CASE)
 
 1.  **Generate an SSH Key Pair (if you don't have one):**
     Open a terminal on your **control node** and run:
