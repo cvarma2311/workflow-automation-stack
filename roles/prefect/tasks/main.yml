@@ -18,7 +18,7 @@
 
 - name: Drop employee flow file (wired to spark:// master)
   ansible.builtin.template:
-    src: employee_flow.py.j2
+    src: employee_flow_work_pool.py.j2
     dest: "{{ prefect_flow_file }}"
     mode: "0644"
 
@@ -27,12 +27,14 @@
     src: prefect-server.service.j2
     dest: /etc/systemd/system/prefect-server.service
     mode: "0644"
+  when: inventory_hostname in groups['prefect_server']
 
 - name: Create Prefect agent systemd unit
   ansible.builtin.template:
     src: prefect-agent.service.j2
     dest: /etc/systemd/system/prefect-agent.service
     mode: "0644"
+  when: inventory_hostname in groups['prefect_agents']
 
 - name: Reload systemd
   ansible.builtin.systemd:
@@ -43,6 +45,7 @@
     name: prefect-server
     state: started
     enabled: true
+  when: inventory_hostname in groups['prefect_server']
 
 - name: Wait for Prefect API to be up
   ansible.builtin.uri:
@@ -53,23 +56,39 @@
   retries: 60
   delay: 2
   until: pref_up.status == 200
+  when: inventory_hostname in groups['prefect_server']
+
+- name: Create Prefect Work Pool
+  ansible.builtin.shell: |
+    source "{{ prefect_install_venv }}/bin/activate"
+    prefect work-pool create {{ prefect_work_pool_name }} --type {{ prefect_work_pool_type }}
+  args:
+    chdir: "{{ prefect_home }}"
+  when: inventory_hostname in groups['prefect_server']
+  register: work_pool_create
+  changed_when: "'successfully created' in work_pool_create.stdout"
+  failed_when: work_pool_create.rc != 0 and 'already exists' not in work_pool_create.stderr
 
 - name: Enable & start Prefect agent
   ansible.builtin.systemd:
     name: prefect-agent
     state: started
     enabled: true
+  when: inventory_hostname in groups['prefect_agents']
 
 - name: Build deployment
   ansible.builtin.shell: |
     source "{{ prefect_install_venv }}/bin/activate"
     prefect deployment build "{{ prefect_flow_file }}:{{ prefect_flow_name }}" \
-      -n "{{ prefect_deployment_name }}" -q "{{ prefect_queue }}" \
+      -n "{{ prefect_deployment_name }}" --work-pool "{{ prefect_work_pool_name }}" \
       -o "{{ prefect_home }}/{{ prefect_deployment_name }}.yaml"
   args:
     chdir: "{{ prefect_home }}"
+  when: inventory_hostname in groups['prefect_server']
 
 - name: Apply deployment
   ansible.builtin.shell: |
     source "{{ prefect_install_venv }}/bin/activate"
     prefect deployment apply "{{ prefect_home }}/{{ prefect_deployment_name }}.yaml"
+  when: inventory_hostname in groups['prefect_server']
+

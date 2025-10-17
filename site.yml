@@ -29,7 +29,7 @@
     - role: spark
       tags: [ 'spark' ]
 
-- name: Deploy Prefect
+- name: Deploy Prefect with Work Pools
   hosts: prefect_server,prefect_agents
   become: true
   roles:

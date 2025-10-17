@@ -80,3 +80,7 @@ ufw_enable: true
 admin_allow_cidr: "any"                   # replace with your admin IP/CIDR to lock down
 ssh_port: 22
 prefect_port: 4200
+
+# ==== New Prefect Work Pool Variables ====
+prefect_work_pool_name: "default-pool"
+prefect_work_pool_type: "process"

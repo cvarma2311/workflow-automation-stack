@@ -1,15 +1,13 @@
 [Unit]
 Description=Prefect Agent
-After=prefect-server.service
+After=network.target
 
 [Service]
 Type=simple
-Environment=PREFECT_API_URL={{ prefect_api_host }}/api
-Environment=PATH={{ prefect_install_venv }}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/opt/spark/bin
+User=root
 WorkingDirectory={{ prefect_home }}
-ExecStart={{ prefect_install_venv }}/bin/prefect agent start -q {{ prefect_queue }}
-Restart=always
-RestartSec=5
+ExecStart={{ prefect_install_venv }}/bin/prefect agent start --pool {{ prefect_work_pool_name }}
+Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target

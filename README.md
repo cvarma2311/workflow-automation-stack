@@ -16,7 +16,7 @@ It also deploys:
 
 ## 1) Repository Layout (Modular Roles)
 
-This project is now structured using Ansible roles for better organization and scalability.
+This project is now configured to use a modern Prefect work pool architecture. The `prefect` role deploys the server on the master and agents on the workers, with a `process` type work pool for flow execution.
 
 ```
 workflow-automation-stack/
@@ -60,7 +60,7 @@ workflow-automation-stack/
   Installs PostgreSQL for the Iceberg catalog.
 
 - **`roles/prefect/`**  
-  Installs Prefect Server (UI/API) and Prefect Agent (listens on the “default” queue). Also deploys the demo flow.
+  Installs Prefect Server (UI/API) and Prefect Agent. The agent is configured to use a work pool for flow execution. Also deploys the demo flow.
 
 - **`roles/ufw/`**  
   Configures UFW firewall rules.
@@ -183,7 +183,7 @@ Ansible connects to your VMs via SSH. For a smooth, passwordless experience, it'
     *   **MinIO Console:** `https://150.230.139.113:9001` (Use the `minio_root_user` and `minio_root_password` from `roles/common/vars/main.yml`)
     *   **Spark Master UI:** `http://150.230.139.113:8080`
     *   **Prefect UI:** `http://150.230.139.113:4200`
-    *   **Test Prefect flow**: In the Prefect UI, navigate to the "Deployments" section and trigger the `employee-flow` deployment.
+    *   **Test Prefect flow**: In the Prefect UI, navigate to the "Work Pools" section, select your work pool, and you should see the `employee-flow` deployment ready to run.
     *   **Test manual Spark job**: SSH to your first VM (`150.230.139.113`) and run:
         ```bash
         bash /opt/prefect/jobs/run_employee_job.sh
@@ -202,11 +202,7 @@ Ansible connects to your VMs via SSH. For a smooth, passwordless experience, it'
 
 ## 5) Flexibility for Future Expansion
 
-The modular role structure allows for easier scaling:
-
--   **Adding more Spark Workers:** To add more Spark workers, simply add their IPs to the `[spark_workers]` group in `inventory.ini` and re-run the playbook. The `spark` role is designed to deploy workers to all hosts in this group.
--   **Adding more Prefect Agents:** Similarly, add new VM IPs to the `[prefect_agents]` group in `inventory.ini` and re-run the playbook.
--   **Scaling MinIO/PostgreSQL:** If you need to scale MinIO to a distributed cluster or set up a PostgreSQL cluster, this would require more significant changes to the respective roles, as they are currently configured for single-node deployments. However, the modular role structure makes it easier to modify these specific roles without affecting the entire setup.
+The `prefect` role now deploys the Prefect server on the master node and agents on the worker nodes. It configures a work pool for flow execution, providing a more modern and flexible architecture.
 
 ---
 
