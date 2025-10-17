@@ -1,0 +1,47 @@
+---
+# tasks file for roles/stack_deploy
+
+- name: Define credentials
+  ansible.builtin.set_fact:
+    minio_root_user: "minioadmin"
+    minio_root_password: "your-secure-minio-password"
+    postgres_user: "prefect_user"
+    postgres_password: "your-secure-pg-password"
+  run_once: true
+
+- name: Add storage label to the designated node
+  ansible.builtin.command: "docker node update --label-add minio.storage=true {{ groups['storage'][0] }}"
+  run_once: true
+
+- name: Create MinIO data directory on the storage node
+  ansible.builtin.file:
+    path: /mnt/nvme/minio/data
+    state: directory
+    mode: '0755'
+  delegate_to: "{{ groups['storage'][0] }}"
+
+- name: Create MinIO root user secret
+  community.docker.docker_secret:
+    name: minio_root_user
+    data: "{{ minio_root_user }}"
+    state: present
+
+- name: Create MinIO root password secret
+  community.docker.docker_secret:
+    name: minio_root_password
+    data: "{{ minio_root_password }}"
+    state: present
+
+- name: Deploy MinIO stack
+  community.docker.docker_stack:
+    name: minio_stack
+    state: present
+    compose:
+      - "{{ lookup('template', 'docker-compose.minio.yml.j2') }}"
+
+- name: Deploy Prefect stack
+  community.docker.docker_stack:
+    name: prefect_stack
+    state: present
+    compose:
+      - "{{ lookup('template', 'docker-compose.prefect.yml.j2') }}"

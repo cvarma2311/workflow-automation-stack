@@ -64,10 +64,11 @@
     prefect work-pool create {{ prefect_work_pool_name }} --type {{ prefect_work_pool_type }}
   args:
     chdir: "{{ prefect_home }}"
+    executable: /bin/bash
   when: inventory_hostname in groups['prefect_server']
   register: work_pool_create
   changed_when: "'successfully created' in work_pool_create.stdout"
-  failed_when: work_pool_create.rc != 0 and 'already exists' not in work_pool_create.stderr
+  failed_when: work_pool_create.rc != 0 and 'already exists' not in work_pool_create.stdout
 
 - name: Enable & start Prefect agent
   ansible.builtin.systemd:
@@ -76,19 +77,22 @@
     enabled: true
   when: inventory_hostname in groups['prefect_agents']
 
-- name: Build deployment
-  ansible.builtin.shell: |
-    source "{{ prefect_install_venv }}/bin/activate"
-    prefect deployment build "{{ prefect_flow_file }}:{{ prefect_flow_name }}" \
-      -n "{{ prefect_deployment_name }}" --work-pool "{{ prefect_work_pool_name }}" \
-      -o "{{ prefect_home }}/{{ prefect_deployment_name }}.yaml"
-  args:
-    chdir: "{{ prefect_home }}"
-  when: inventory_hostname in groups['prefect_server']
+# - name: Build deployment
+#   ansible.builtin.shell: |
+#     source "{{ prefect_install_venv }}/bin/activate"
+#     prefect deployment build "{{ prefect_flow_file }}:{{ prefect_flow_name }}" \
+#       -n "{{ prefect_deployment_name }}" --work-pool "{{ prefect_work_pool_name }}" \
+#       -o "{{ prefect_home }}/{{ prefect_deployment_name }}.yaml"
+#   args:
+#     chdir: "{{ prefect_home }}"
+#     executable: /bin/bash
+#   when: inventory_hostname in groups['prefect_server']
 
-- name: Apply deployment
-  ansible.builtin.shell: |
-    source "{{ prefect_install_venv }}/bin/activate"
-    prefect deployment apply "{{ prefect_home }}/{{ prefect_deployment_name }}.yaml"
-  when: inventory_hostname in groups['prefect_server']
+# - name: Apply deployment
+#   ansible.builtin.shell: |
+#     source "{{ prefect_install_venv }}/bin/activate"
+#     prefect deployment apply "{{ prefect_home }}/{{ prefect_deployment_name }}.yaml"
+#   args:
+#     executable: /bin/bash
+#   when: inventory_hostname in groups['prefect_server']
 

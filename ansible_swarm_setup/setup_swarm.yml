@@ -1,0 +1,24 @@
+---
+- name: Play 1 - Install Docker on all nodes
+  hosts: all
+  become: true
+  roles:
+    - role: docker
+
+- name: Play 2 - Initialize Swarm on the manager node
+  hosts: managers
+  become: true
+  roles:
+    - role: swarm_manager
+
+- name: Play 3 - Join workers to the Swarm
+  hosts: workers
+  become: true
+  roles:
+    - role: swarm_worker
+
+- name: Play 4 - Deploy application stacks on the manager
+  hosts: managers
+  become: true
+  roles:
+    - role: stack_deploy

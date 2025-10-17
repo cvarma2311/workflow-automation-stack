@@ -1,0 +1,12 @@
+---
+# tasks file for roles/swarm_worker
+
+- name: Check if node is already in a Swarm
+  ansible.builtin.command: docker info --format '{{.Swarm.LocalNodeState}}'
+  register: swarm_status
+  changed_when: false
+  failed_when: false
+
+- name: Join the Swarm as a worker
+  ansible.builtin.command: "docker swarm join --token {{ hostvars[groups['managers'][0]]['worker_join_token'] }} {{ hostvars[groups['managers'][0]]['ansible_host'] }}:2377"
+  when: swarm_status.stdout == 'inactive'

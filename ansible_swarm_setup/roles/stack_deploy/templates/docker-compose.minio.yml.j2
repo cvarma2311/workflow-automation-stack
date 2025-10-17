@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - ai-net
+    secrets:
+      - minio_root_user
+      - minio_root_password
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_root_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+    volumes:
+      - /mnt/nvme/minio/data:/data
+    deploy:
+      placement:
+        constraints:
+          - node.labels.minio.storage == true
+
+networks:
+  ai-net:
+    external: true
+
+secrets:
+  minio_root_user:
+    external: true
+  minio_root_password:
+    external: true

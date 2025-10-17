@@ -64,7 +64,7 @@ pg_jdbc_uri: "jdbc:postgresql://{{ minio_primary_host }}:{{ pg_port }}/{{ pg_db 
 prefect_install_venv: "/opt/prefect/venv"
 prefect_home: "/opt/prefect"
 prefect_queue: "default"
-prefect_api_host: "http://150.230.139.113:4200"   # Prefect UI/API
+prefect_api_host: "http://140.245.228.72:4200"   # Prefect UI/API
 prefect_version: ""                       # "" = latest, or pin e.g. "2.20.8"
 prefect_flow_name: "employee_pipeline"
 prefect_deployment_name: "EmployeePipeline"

@@ -1,0 +1,31 @@
+---
+# tasks file for roles/swarm_manager
+
+- name: Check if Swarm is already initialized
+  ansible.builtin.command: docker info --format '{{.Swarm.LocalNodeState}}'
+  register: swarm_status
+  changed_when: false
+  failed_when: false # This command fails if not in swarm, which is ok
+
+- name: Initialize the Swarm
+  ansible.builtin.command: "docker swarm init --advertise-addr {{ ansible_host }}"
+  when: swarm_status.stdout != 'active'
+
+- name: Get the worker join token
+  ansible.builtin.command: docker swarm join-token worker -q
+  register: worker_join_token
+  changed_when: false
+
+- name: Store worker join token as a fact
+  ansible.builtin.set_fact:
+    worker_join_token: "{{ worker_join_token.stdout }}"
+
+- name: Check if ai-net network exists
+  ansible.builtin.command: docker network inspect ai-net
+  register: network_inspect
+  changed_when: false
+  failed_when: false
+
+- name: Create ai-net overlay network
+  ansible.builtin.command: docker network create --driver overlay ai-net
+  when: network_inspect.rc != 0
