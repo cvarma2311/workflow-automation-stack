@@ -2,21 +2,22 @@
 
 ## 1. Introduction
 
-This guide provides detailed instructions on how to use the Ansible project in this directory to automatically deploy a full Docker Swarm cluster and run the MinIO and Prefect application stacks. 
+This guide provides detailed instructions on how to use the Ansible project in this directory to automatically deploy a full Docker Swarm cluster and run the MinIO and Prefect application stacks.
 
-The playbook automates everything from installing Docker on fresh Ubuntu VMs to deploying the final services.
+The playbook automates everything from installing Docker on fresh Ubuntu VMs to deploying the final services. **This setup uses MinIO's native distributed mode, deploying one MinIO instance on each node of the cluster for a resilient and performant object store. It also ensures that the Prefect server runs on the manager node, while Prefect agents run on the worker nodes.**
 
 ## 2. Prerequisites
 
 Before you begin, ensure you have the following:
 
 - **A Local Machine:** Your computer, where you will run the Ansible commands.
-- **Ansible Installed:** If you don't have it, you can install it via `pip` or `brew`.
-- **Ansible Docker Collection:** The playbook requires this. Install it with:
+- **Python and Pip:** You need a Python environment to run Ansible.
+- **Project Dependencies:** Install all the necessary Python packages and Ansible collections by running the following commands from the root of the project:
   ```bash
+  pip install -r requirements.txt
   ansible-galaxy collection install community.docker
   ```
-- **Fresh Ubuntu VMs:** A set of new Ubuntu VMs (22.04 is recommended) with known IP addresses.
+- **Fresh Ubuntu VMs:** A set of new Ubuntu VMs (22.04 is recommended) with known IP addresses. For MinIO's distributed mode to be effective, you should have at least 4 nodes, which is the minimum for erasure coding.
 - **SSH Access:** You must have SSH key-based access from your local machine to all the Ubuntu VMs. Ensure your public key is in the `~/.ssh/authorized_keys` file on each VM for the user you will connect with.
 
 ## 3. Configuration
@@ -27,7 +28,7 @@ Before running the playbook, you need to configure it for your specific environm
 
 This is the most important file to edit. Open `inventory.ini` and configure the IP addresses and SSH connection details for your servers.
 
-- **Host Groups (`[managers]`, `[workers]`, `[storage]`):** Place the IP addresses of your VMs into the appropriate groups. The `ansible_host` parameter is where the IP goes.
+- **Host Groups (`[managers]`, `[workers]`):** Place the IP addresses of your VMs into the appropriate groups. The `ansible_host` parameter is where the IP goes.
 - **Connection Variables (`ansible_user`, `ansible_ssh_private_key_file`):** You can define the SSH username and path to your private key (`.key` or `.pem` file) in two ways:
 
     1.  **Per-Host (Most Flexible):** If your VMs have different users or keys, define them on the same line as the host. This is the recommended approach for clarity.
@@ -43,10 +44,7 @@ manager-1 ansible_host=198.51.100.10 ansible_user=admin ansible_ssh_private_key_
 # These workers use the 'ubuntu' user and a different key
 worker-1 ansible_host=198.51.100.11 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/worker.key
 worker-2 ansible_host=198.51.100.12 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/worker.key
-
-[storage]
-# The storage node must also be defined here
-worker-1 ansible_host=198.51.100.11 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/worker.key
+worker-3 ansible_host=198.51.100.13 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/worker.key
 
 [all:vars]
 # You can leave this empty if you define variables per-host
@@ -72,12 +70,7 @@ For security, you should change the default passwords for MinIO and PostgreSQL.
 
 ### 3.3. MinIO Storage Path (Optional)
 
-The playbook assumes you will store MinIO's data in `/mnt/nvme/minio/data` on the storage host.
-
-If your persistent storage is located at a different path (e.g., `/data/storage`), you must update it in **two** places:
-
-1.  `roles/stack_deploy/tasks/main.yml`: In the task `Create MinIO data directory on the storage node`, change the `path` value.
-2.  `roles/stack_deploy/templates/docker-compose.minio.yml.j2`: In the `volumes` section for the `minio` service, change the host path part of the volume mount.
+The playbook creates a directory on each node at `/mnt/minio/data` to be used by that node's MinIO instance. If you need to use a different path, you can change it in the `setup_swarm.yml` playbook, in the play named `Create MinIO data directories on all nodes`.
 
 ## 4. Run the Deployment
 
@@ -95,11 +88,11 @@ After the playbook finishes successfully:
 
 1.  **Verify Swarm Nodes:** SSH into your manager node and run `docker node ls` to see all nodes in the cluster.
 
-2.  **Verify Services:** On the manager, run `docker service ls` to see the MinIO and Prefect services running.
+2.  **Verify Services:** On the manager, run `docker service ls` to see the MinIO and Prefect services running. You should see one `minio_stack_minio` task running on each node. You can also run `docker service ps <service_name>` (e.g., `docker service ps prefect_stack_prefect-server`) to verify that services are running on the correct nodes.
 
 3.  **Access Web UIs:**
-    - **MinIO:** `http://<IP_of_storage_node>:9001`
-    - **Prefect:** `http://<IP_of_any_swarm_node>:4200`
+    - **MinIO:** `http://<IP_of_ANY_swarm_node>:9001`
+    - **Prefect:** `http://<IP_of_ANY_swarm_node>:4200`
 
 4.  **Final Prefect Setup (One-time):**
     - In the Prefect UI, go to the **Work Pools** page.

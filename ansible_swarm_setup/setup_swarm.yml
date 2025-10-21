@@ -5,19 +5,29 @@
   roles:
     - role: docker
 
-- name: Play 2 - Initialize Swarm on the manager node
+- name: Play 2 - Create MinIO data directories on all nodes
+  hosts: all
+  become: true
+  tasks:
+    - name: Create local MinIO data directory
+      ansible.builtin.file:
+        path: /mnt/minio/data
+        state: directory
+        mode: '0755'
+
+- name: Play 3 - Initialize Swarm on the manager node
   hosts: managers
   become: true
   roles:
     - role: swarm_manager
 
-- name: Play 3 - Join workers to the Swarm
+- name: Play 4 - Join workers to the Swarm
   hosts: workers
   become: true
   roles:
     - role: swarm_worker
 
-- name: Play 4 - Deploy application stacks on the manager
+- name: Play 5 - Deploy application stacks on the manager
   hosts: managers
   become: true
   roles:

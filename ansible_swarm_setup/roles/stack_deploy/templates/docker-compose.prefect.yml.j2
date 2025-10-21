@@ -11,9 +11,13 @@ services:
       POSTGRES_DB: prefect_server
     volumes:
       - prefect-db:/var/lib/postgresql/data
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
 
   prefect-server:
-    image: prefecthq/prefect:latest-python3.11
+    image: prefecthq/prefect:2.14.17
     command: prefect server start --host 0.0.0.0
     ports:
       - "4200:4200"
@@ -23,9 +27,13 @@ services:
       PREFECT_API_DATABASE_CONNECTION_URL: "postgresql+asyncpg://{{ postgres_user }}:{{ postgres_password }}@postgres:5432/prefect_server"
     depends_on:
       - postgres
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
 
   prefect-agent:
-    image: prefecthq/prefect:latest-python3.11
+    image: prefecthq/prefect:latest
     command: prefect agent start -p my-docker-pool
     networks:
       - ai-net
@@ -35,6 +43,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     deploy:
       replicas: 2 # Start with 2 agent replicas, you can scale this later
+      placement:
+        constraints:
+          - node.role == worker
     depends_on:
       - prefect-server
 

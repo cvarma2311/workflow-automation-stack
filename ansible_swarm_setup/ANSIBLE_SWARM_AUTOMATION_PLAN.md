@@ -4,7 +4,7 @@
 
 This document outlines the plan to create a self-contained Ansible project that automates the entire process of building a Docker Swarm cluster and deploying the MinIO and Prefect application stacks. 
 
-The goal is to start with a set of fresh Ubuntu VMs and end with a running, multi-node application cluster, with all steps managed by Ansible.
+The goal is to start with a set of fresh Ubuntu VMs and end with a running, multi-node application cluster, with all steps managed by Ansible. **This plan uses MinIO's native distributed mode for resilient object storage.**
 
 ## 2. Ansible Project Structure
 
@@ -41,17 +41,18 @@ When you run the final `ansible-playbook` command, the following will happen aut
 
 1.  **Install Docker:** The `docker` role will run on all your VMs. It will add the official Docker repository, install the Docker engine, and ensure the service is running.
 
-2.  **Initialize Swarm:** The `swarm_manager` role will run on your designated manager VM. It will initialize the Swarm and securely capture the unique join-token required for worker nodes.
+2.  **Create MinIO Storage Directories:** A task will run on all VMs to create a local directory (`/mnt/minio/data`) for each MinIO instance to store its data.
 
-3.  **Join Workers:** The `swarm_worker` role will run on all your worker VMs. It will use the token captured in the previous step to securely join the Swarm cluster.
+3.  **Initialize Swarm:** The `swarm_manager` role will run on your designated manager VM. It will initialize the Swarm and securely capture the unique join-token required for worker nodes.
 
-4.  **Create Network:** The `swarm_manager` role will also create the `ai-net` overlay network that the application services will use for communication.
+4.  **Join Workers:** The `swarm_worker` role will run on all your worker VMs. It will use the token captured in the previous step to securely join the Swarm cluster.
 
-5.  **Deploy Applications:** Finally, the `stack_deploy` role will run on the manager. It will:
-    - Create the persistent storage directory for MinIO on the designated storage node.
+5.  **Create Network:** The `swarm_manager` role will also create the `ai-net` overlay network that the application services will use for communication.
+
+6.  **Deploy Applications:** Finally, the `stack_deploy` role will run on the manager. It will:
     - Create the required Docker Secrets for MinIO credentials.
     - Copy the Docker Compose files to the manager.
-    - Execute `docker stack deploy` to launch the MinIO, Prefect Server, and Prefect Agent services onto the cluster.
+    - Execute `docker stack deploy` to launch the MinIO, Prefect Server, and Prefect Agent services onto the cluster. **MinIO will be deployed as a global service, with one instance on each node, running in its native distributed mode. The Prefect server will be constrained to the manager node, and Prefect agents will run on the worker nodes.**
 
 ## 4. Your Instructions
 

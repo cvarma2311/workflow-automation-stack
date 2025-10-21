@@ -2,7 +2,7 @@
 # tasks file for roles/swarm_manager
 
 - name: Check if Swarm is already initialized
-  ansible.builtin.command: docker info --format '{{.Swarm.LocalNodeState}}'
+  ansible.builtin.command: "{% raw %}docker info --format '{{.Swarm.LocalNodeState}}'{% endraw %}"
   register: swarm_status
   changed_when: false
   failed_when: false # This command fails if not in swarm, which is ok

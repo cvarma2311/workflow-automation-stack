@@ -1,24 +1,36 @@
 ---
 # tasks file for roles/stack_deploy
 
+- name: Ensure python3-venv and pip are installed
+  ansible.builtin.apt:
+    name:
+      - python3-venv
+      - python3-pip
+    state: present
+    update_cache: true
+
+- name: Create a virtual environment for Ansible Docker modules
+  ansible.builtin.command: python3 -m venv /opt/ansible-env
+  args:
+    creates: /opt/ansible-env
+
+- name: Install required Python packages inside the virtual environment
+  ansible.builtin.command: >
+    /opt/ansible-env/bin/pip install docker jsondiff requests
+  args:
+    creates: /opt/ansible-env/lib/python3.*/site-packages/docker
+
+- name: Set Python interpreter for Ansible to use the venv
+  ansible.builtin.set_fact:
+    ansible_python_interpreter: /opt/ansible-env/bin/python
+
 - name: Define credentials
   ansible.builtin.set_fact:
     minio_root_user: "minioadmin"
-    minio_root_password: "your-secure-minio-password"
+    minio_root_password: "minioadmin"
     postgres_user: "prefect_user"
-    postgres_password: "your-secure-pg-password"
+    postgres_password: "prefectuser"
   run_once: true
-
-- name: Add storage label to the designated node
-  ansible.builtin.command: "docker node update --label-add minio.storage=true {{ groups['storage'][0] }}"
-  run_once: true
-
-- name: Create MinIO data directory on the storage node
-  ansible.builtin.file:
-    path: /mnt/nvme/minio/data
-    state: directory
-    mode: '0755'
-  delegate_to: "{{ groups['storage'][0] }}"
 
 - name: Create MinIO root user secret
   community.docker.docker_secret:
@@ -32,16 +44,26 @@
     data: "{{ minio_root_password }}"
     state: present
 
+- name: Copy MinIO compose file to manager
+  ansible.builtin.template:
+    src: docker-compose.minio.yml.j2
+    dest: /tmp/docker-compose.minio.yml
+
 - name: Deploy MinIO stack
   community.docker.docker_stack:
     name: minio_stack
     state: present
     compose:
-      - "{{ lookup('template', 'docker-compose.minio.yml.j2') }}"
+      - /tmp/docker-compose.minio.yml
+
+- name: Copy Prefect compose file to manager
+  ansible.builtin.template:
+    src: docker-compose.prefect.yml.j2
+    dest: /tmp/docker-compose.prefect.yml
 
 - name: Deploy Prefect stack
   community.docker.docker_stack:
     name: prefect_stack
     state: present
     compose:
-      - "{{ lookup('template', 'docker-compose.prefect.yml.j2') }}"
+      - /tmp/docker-compose.prefect.yml
