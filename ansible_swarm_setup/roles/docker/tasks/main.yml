@@ -62,16 +62,22 @@
     state: present
     update_cache: true
 
-- name: Allow Docker Swarm ports
+- name: Allow essential and Docker Swarm ports
   ansible.builtin.ufw:
     rule: allow
     port: "{{ item.port }}"
     proto: "{{ item.proto }}"
   loop:
-    - { port: '2377', proto: 'tcp' }
-    - { port: '7946', proto: 'tcp' }
-    - { port: '7946', proto: 'udp' }
-    - { port: '4789', proto: 'udp' }
+    - { port: '22', proto: 'tcp' }   # SSH
+    - { port: '2377', proto: 'tcp' } # Swarm Management
+    - { port: '7946', proto: 'tcp' } # Swarm Node Discovery
+    - { port: '7946', proto: 'udp' } # Swarm Node Discovery
+    - { port: '4789', proto: 'udp' } # Swarm Overlay Network
+
+- name: Allow ICMP (ping)
+  ansible.builtin.ufw:
+    rule: allow
+    proto: icmp
 
 - name: Ensure UFW is enabled and reloaded
   ansible.builtin.ufw:
