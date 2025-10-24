@@ -5,7 +5,7 @@
   roles:
     - role: docker
 
-- name: Play 2 - Create MinIO data directories on all nodes
+- name: Play 2 - Create MinIO data directory on all nodes
   hosts: all
   become: true
   tasks:

@@ -74,11 +74,6 @@
     - { port: '7946', proto: 'udp' } # Swarm Node Discovery
     - { port: '4789', proto: 'udp' } # Swarm Overlay Network
 
-- name: Allow ICMP (ping)
-  ansible.builtin.ufw:
-    rule: allow
-    proto: icmp
-
 - name: Ensure UFW is enabled and reloaded
   ansible.builtin.ufw:
     state: enabled

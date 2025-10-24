@@ -102,3 +102,35 @@ After the playbook finishes successfully:
     - The Prefect agents will automatically find this pool and start looking for work.
 
 Your deployment is now complete.
+
+ Minio
+
+  # Check Service Status:
+    docker service ps minio_stack_minio
+
+  # View Service Logs:
+    docker service logs minio_stack_minio
+
+  Prefect
+
+  Check Service Status:
+
+   # For the server
+    docker service ps prefect_stack_prefect-server
+   
+   # For the agent
+    docker service ps prefect_stack_prefect-agent
+
+   # For the database
+    docker service ps prefect_stack_postgres
+
+  View Service Logs:
+
+   # For the server
+    docker service logs prefect_stack_prefect-server
+
+   # For the agent
+    docker service logs prefect_stack_prefect-agent
+
+   # For the database
+    docker service logs prefect_stack_postgres
