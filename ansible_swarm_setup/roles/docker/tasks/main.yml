@@ -73,6 +73,8 @@
     - { port: '7946', proto: 'tcp' } # Swarm Node Discovery
     - { port: '7946', proto: 'udp' } # Swarm Node Discovery
     - { port: '4789', proto: 'udp' } # Swarm Overlay Network
+    - { port: '9000', proto: 'tcp' } # Minio
+    - { port: '9001', proto: 'tcp' } # Minio Console
 
 - name: Ensure UFW is enabled and reloaded
   ansible.builtin.ufw:

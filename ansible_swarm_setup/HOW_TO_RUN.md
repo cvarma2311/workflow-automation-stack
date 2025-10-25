@@ -134,3 +134,6 @@ Your deployment is now complete.
 
    # For the database
     docker service logs prefect_stack_postgres
+
+   # the definitive configuration of the service.
+    sudo docker service inspect minio_stack_minio
