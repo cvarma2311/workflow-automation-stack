@@ -94,14 +94,11 @@ After the playbook finishes successfully:
     - **MinIO:** `http://<IP_of_ANY_swarm_node>:9001`
     - **Prefect:** `http://<IP_of_ANY_swarm_node>:4200`
 
-4.  **Final Prefect Setup (One-time):**
+4.  **Verify Prefect Work Pool:**
     - In the Prefect UI, go to the **Work Pools** page.
-    - Click the `+` button to create a new pool.
-    - Select **Docker** as the infrastructure type.
-    - Name the pool `my-docker-pool` and save it.
-    - The Prefect agents will automatically find this pool and start looking for work.
+    - You should see the `my-docker-pool` already created and the agents connected to it, ready for work.
 
-Your deployment is now complete.
+Your deployment is now complete and fully automated.
 
  Minio
 

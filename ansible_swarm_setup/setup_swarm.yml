@@ -1,4 +1,35 @@
 ---
+- name: Uninstall Prefect Components
+  hosts: all
+  become: true
+  tasks:
+    - name: Remove Prefect stack from Swarm
+      community.docker.docker_stack:
+        name: prefect_stack
+        state: absent
+      when: "'managers' in group_names"
+      ignore_errors: true
+
+    - name: Stop and disable prefect-agent service
+      ansible.builtin.systemd:
+        name: prefect-agent
+        state: stopped
+        enabled: false
+      ignore_errors: true
+
+    - name: Stop and disable prefect-server service
+      ansible.builtin.systemd:
+        name: prefect-server
+        state: stopped
+        enabled: false
+      ignore_errors: true
+
+    - name: Uninstall prefect pip package
+      ansible.builtin.pip:
+        name: prefect
+        state: absent
+      ignore_errors: true
+
 - name: Play 1 - Install Docker on all nodes
   hosts: all
   become: true

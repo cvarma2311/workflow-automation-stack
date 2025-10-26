@@ -17,7 +17,7 @@ services:
           - node.role == manager
 
   prefect-server:
-    image: prefecthq/prefect:2.14.17
+    image: prefecthq/prefect:2-latest
     command: prefect server start --host 0.0.0.0
     ports:
       - "4200:4200"
@@ -33,8 +33,8 @@ services:
           - node.role == manager
 
   prefect-agent:
-    image: prefecthq/prefect:latest
-    command: prefect agent start -p my-docker-pool
+    image: prefecthq/prefect:2-latest
+    command: prefect agent start -q my-docker-pool-queue
     networks:
       - ai-net
     environment:

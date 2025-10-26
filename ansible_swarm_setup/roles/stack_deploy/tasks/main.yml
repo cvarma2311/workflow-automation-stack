@@ -16,9 +16,9 @@
 
 - name: Install required Python packages inside the virtual environment
   ansible.builtin.command: >
-    /opt/ansible-env/bin/pip install docker jsondiff requests
+    /opt/ansible-env/bin/pip install docker jsondiff requests prefect
   args:
-    creates: /opt/ansible-env/lib/python3.*/site-packages/docker
+    creates: /opt/ansible-env/lib/python3.*/site-packages/prefect
 
 - name: Set Python interpreter for Ansible to use the venv
   ansible.builtin.set_fact:
@@ -67,3 +67,21 @@
     state: present
     compose:
       - /tmp/docker-compose.prefect.yml
+
+- name: Wait for Prefect API to be available
+  ansible.builtin.wait_for:
+    port: 4200
+    delay: 10
+    timeout: 60
+
+- name: Copy work pool creation script to manager
+  ansible.builtin.template:
+    src: create_work_pool.py.j2
+    dest: /tmp/create_work_pool.py
+    mode: '0755'
+
+- name: Create Prefect work pool
+  ansible.builtin.command: /opt/ansible-env/bin/python /tmp/create_work_pool.py
+  environment:
+    PREFECT_API_URL: http://localhost:4200/api
+  changed_when: false

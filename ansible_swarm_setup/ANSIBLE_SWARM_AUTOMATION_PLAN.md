@@ -54,6 +54,8 @@ When you run the final `ansible-playbook` command, the following will happen aut
     - Copy the Docker Compose files to the manager.
     - Execute `docker stack deploy` to launch the MinIO, Prefect Server, and Prefect Agent services onto the cluster. **MinIO will be deployed as a global service, with one instance on each node, running in its native distributed mode. The Prefect server will be constrained to the manager node, and Prefect agents will run on the worker nodes.**
 
+7.  **Create Prefect Work Pool:** After the Prefect server is running, a task will automatically create the `my-docker-pool` Docker work pool. This allows the Prefect agents to start polling for work immediately without any manual setup.
+
 ## 4. Your Instructions
 
 Once this Ansible project is built, your only manual steps will be:
@@ -63,10 +65,8 @@ Once this Ansible project is built, your only manual steps will be:
     ```bash
     ansible-playbook -i inventory.ini setup_swarm.yml
     ```
-3.  **Create Prefect Work Pool (One-time setup):** After the playbook completes, access the Prefect UI at `http://<any_swarm_node_ip>:4200`. Navigate to the "Work Pools" page and create a new pool:
-    - Choose the **Docker** infrastructure type.
-    - Name the pool `my-docker-pool`.
-    - After creating the pool, the agents will automatically connect to it.
+
+After the playbook completes, the entire stack, including the Prefect work pool, will be ready to use.
 
 ## 5. Next Steps
 

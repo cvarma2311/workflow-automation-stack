@@ -1,0 +1,28 @@
+
+import asyncio
+import os
+from prefect.client.orchestration import get_client
+from prefect.server.schemas.actions import WorkPoolCreate
+
+async def create_work_pool():
+    pool_name = "my-docker-pool"
+    async with get_client() as client:
+        try:
+            await client.read_work_pool(pool_name)
+            print(f"Work pool '{pool_name}' already exists.")
+        except Exception:
+            print(f"Creating work pool '{pool_name}'...")
+            await client.create_work_pool(
+                work_pool=WorkPoolCreate(
+                    name=pool_name,
+                    type="docker",
+                    base_job_template={
+                        "image": "prefecthq/prefect:2-latest",
+                        "network_mode": "ai-net",
+                    },
+                )
+            )
+            print(f"Work pool '{pool_name}' created.")
+
+if __name__ == "__main__":
+    asyncio.run(create_work_pool())
