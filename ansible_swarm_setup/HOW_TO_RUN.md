@@ -74,11 +74,11 @@ The playbook creates a directory on each node at `/mnt/minio/data` to be used by
 
 ## 4. Run the Deployment
 
-Once your configuration is complete, you can run the master playbook.
+Once your configuration is complete, you can run the master playbook. The playbook is tagged to allow for granular deployments.
 
 ### 4.1. Full Deployment (MinIO + Prefect)
 
-To deploy or update the entire stack, run the following command from the root of the `workflow-automation-stack` directory:
+To deploy or update the entire stack, run the playbook without any tags. This is the default behavior.
 
 ```bash
 ansible-playbook -i ansible_swarm_setup/inventory.ini ansible_swarm_setup/setup_swarm.yml
@@ -86,12 +86,18 @@ ansible-playbook -i ansible_swarm_setup/inventory.ini ansible_swarm_setup/setup_
 
 ### 4.2. Deploying Only Prefect
 
-If you want to deploy or update only the Prefect stack without disturbing an existing MinIO cluster, you can run the playbook and skip all MinIO-related tasks using Ansible tags.
-
-Use this command:
+To deploy or update only the Prefect stack, run the playbook and specify the `prefect` tag. This will run all tasks required for Prefect, including shared prerequisites like Docker and Swarm setup, while skipping all MinIO-specific tasks.
 
 ```bash
-ansible-playbook -i ansible_swarm_setup/inventory.ini ansible_swarm_setup/setup_swarm.yml --skip-tags "minio"
+ansible-playbook -i ansible_swarm_setup/inventory.ini ansible_swarm_setup/setup_swarm.yml --tags "prefect"
+```
+
+### 4.3. Deploying Only MinIO
+
+To deploy or update only the MinIO stack, run the playbook and specify the `minio` tag. This will run all tasks required for MinIO, including shared prerequisites, while skipping all Prefect-specific tasks.
+
+```bash
+ansible-playbook -i ansible_swarm_setup/inventory.ini ansible_swarm_setup/setup_swarm.yml --tags "minio"
 ```
 
 Ansible will now perform all steps automatically. This may take several minutes.
@@ -104,11 +110,35 @@ After the playbook finishes successfully:
 
 2.  **Verify Services:** On the manager, run `docker service ls` to see the MinIO and Prefect services running. You should see one `minio_stack_minio` task running on each node. You can also run `docker service ps <service_name>` (e.g., `docker service ps prefect_stack_prefect-server`) to verify that services are running on the correct nodes.
 
-3.  **Access Web UIs:**
+3.  **Verify MinIO Cluster Health (Optional):**
+
+    To confirm that all MinIO instances have formed a single, healthy cluster, you can use the MinIO Client (`mc`). SSH into your manager node and follow these steps:
+
+    a. **Install `mc`:**
+    ```bash
+    wget https://dl.min.io/client/mc/release/linux-amd64/mc
+    chmod +x mc
+    sudo mv mc /usr/local/bin/
+    ```
+
+    b. **Add your cluster as an alias:**
+    ```bash
+    mc alias set minio http://localhost:9000 minioadmin minioadmin
+    ```
+    *(Note: Replace `minioadmin minioadmin` if you changed the default credentials in the playbook).*
+
+    c. **Check cluster info:**
+    ```bash
+    mc admin info minio
+    ```
+
+    You should see output confirming that all nodes are online (e.g., `Status: 4/4 online`). This proves that the distributed, erasure-coded cluster is working correctly.
+
+4.  **Access Web UIs:**
     - **MinIO:** `http://<IP_of_ANY_swarm_node>:9001`
     - **Prefect:** `http://<IP_of_ANY_swarm_node>:4200`
 
-4.  **Verify Prefect Work Pool:**
+5.  **Verify Prefect Work Pool:**
     - In the Prefect UI, go to the **Work Pools** page.
     - You should see the `my-docker-pool` already created and the workers connected to it, ready for work.
 
@@ -148,3 +178,66 @@ Your deployment is now complete and fully automated.
 
    # the definitive configuration of the service.
     sudo docker service inspect minio_stack_minio
+
+## 6. Troubleshooting
+
+### 6.1. MinIO Network Verification
+
+If you suspect issues with MinIO nodes not being able to communicate with each other, you can perform these checks from the manager node.
+
+**1. Inspect the Overlay Network:**
+
+This command shows which nodes are connected to the `ai-net` overlay network. You should see all your swarm nodes listed as peers.
+
+```bash
+sudo docker network inspect ai-net | grep Peers -A 10
+```
+
+**2. Test Connectivity Between MinIO Containers:**
+
+This script will `exec` into one of the MinIO containers and test its ability to reach the other MinIO containers (`minio1` through `minio4`) over the network.
+
+```bash
+cid=$(sudo docker ps --filter "name=minio_stack_minio" -q | head -n 1)
+sudo docker exec -it $cid sh -c '
+for host in minio1 minio2 minio3 minio4; do
+  echo "Testing connection to $host:9000"
+  getent hosts $host && (echo > /dev/tcp/$host/9000 && echo "✅ reachable" || echo "❌ cannot connect")
+done
+'
+```
+All hosts should report as "✅ reachable". If not, there may be a firewall issue or a problem with the Docker overlay network.
+
+## 7. Running the Example Data Pipeline
+
+This project includes an example Prefect workflow (`prefect_minio_flow.py`) that demonstrates a multi-step data pipeline using MinIO for storage.
+
+### 7.1. Overview of the Flow
+
+1.  **Generate Data:** Creates 100,000 records and saves them to a Parquet file in the `prefect-data` bucket in MinIO.
+2.  **Filter Data (Step 1):** Reads the raw data and filters for records with even-numbered IDs, saving the result to a new file in MinIO.
+3.  **Filter Data (Step 2):** Reads the intermediate data and applies a final filter, saving the result to a final file in MinIO.
+
+### 7.2. How to Deploy and Run
+
+SSH into your **manager node** to perform the following steps.
+
+**1. Deploy the Workflow:**
+
+Run the following command from the `ansible_swarm_setup` directory to deploy the flow to your Prefect server. This makes the flow available to be run by your workers.
+
+```bash
+prefect deploy --name minio-pipeline --pool my-docker-pool prefect_minio_flow.py:minio_data_pipeline
+```
+
+**2. Trigger a Flow Run:**
+
+- Navigate to the Prefect UI at `http://<your_manager_ip>:4200`.
+- Go to the **Flows** page. You should see the `minio-data-pipeline` flow.
+- Click the **Run** button to trigger a new execution of the pipeline.
+
+**3. Observe the Execution:**
+
+- Click on the new run to see the live graph. You can watch as each task is executed by a Prefect worker.
+- Check the logs for each task to see the output, including the number of records being processed and the paths to the data in MinIO.
+- Once complete, you can use the MinIO UI (`http://<your_manager_ip>:9001`) to browse the `prefect-data` bucket and inspect the final Parquet files.

@@ -8,21 +8,25 @@
       - python3-pip
     state: present
     update_cache: true
+  tags: [minio, prefect]
 
 - name: Create a virtual environment for Ansible Docker modules
   ansible.builtin.command: python3 -m venv /opt/ansible-env
   args:
     creates: /opt/ansible-env
+  tags: [minio, prefect]
 
 - name: Install required Python packages inside the virtual environment
   ansible.builtin.command: >
     /opt/ansible-env/bin/pip install docker jsondiff requests prefect
   args:
     creates: /opt/ansible-env/lib/python3.*/site-packages/prefect
+  tags: [prefect]
 
 - name: Set Python interpreter for Ansible to use the venv
   ansible.builtin.set_fact:
     ansible_python_interpreter: /opt/ansible-env/bin/python
+  tags: [prefect]
 
 - name: Define credentials
   ansible.builtin.set_fact:
@@ -31,6 +35,7 @@
     postgres_user: "prefect_user"
     postgres_password: "prefectuser"
   run_once: true
+  tags: [minio, prefect]
 
 - name: Create MinIO root user secret
   community.docker.docker_secret:
@@ -64,6 +69,7 @@
   ansible.builtin.template:
     src: docker-compose.prefect.yml.j2
     dest: /tmp/docker-compose.prefect.yml
+  tags: [prefect]
 
 - name: Deploy Prefect stack
   community.docker.docker_stack:
@@ -71,21 +77,25 @@
     state: present
     compose:
       - /tmp/docker-compose.prefect.yml
+  tags: [prefect]
 
 - name: Wait for Prefect API to be available
   ansible.builtin.wait_for:
     port: 4200
     delay: 10
     timeout: 60
+  tags: [prefect]
 
 - name: Copy work pool creation script to manager
   ansible.builtin.template:
     src: create_work_pool.py.j2
     dest: /tmp/create_work_pool.py
     mode: '0755'
+  tags: [prefect]
 
 - name: Create Prefect work pool
   ansible.builtin.command: /opt/ansible-env/bin/python /tmp/create_work_pool.py
   environment:
     PREFECT_API_URL: http://localhost:4200/api
   changed_when: false
+  tags: [prefect]

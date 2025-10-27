@@ -1,0 +1,5 @@
+prefect
+pandas
+faker
+s3fs
+boto3

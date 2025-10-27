@@ -1,27 +1,76 @@
 version: "3.8"
 
 services:
-  minio:
+  minio1:
     image: minio/minio:latest
-    hostname: "{% raw %}minio{{.Task.Slot}}{% endraw %}"
+    hostname: minio1
     command: server --console-address ":9001" http://minio{1...4}/data
+    volumes:
+      - /mnt/minio/data:/data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    networks:
+      - ai-net
+    deploy:
+      placement:
+        constraints: [node.hostname == ip-172-31-19-78]
+      restart_policy:
+        condition: on-failure
+
+  minio2:
+    image: minio/minio:latest
+    hostname: minio2
+    command: server --console-address ":9001" http://minio{1...4}/data
+    volumes:
+      - /mnt/minio/data:/data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    networks:
+      - ai-net
+    deploy:
+      placement:
+        constraints: [node.hostname == ip-172-31-18-83]
+      restart_policy:
+        condition: on-failure
+
+  minio3:
+    image: minio/minio:latest
+    hostname: minio3
+    command: server --console-address ":9001" http://minio{1...4}/data
+    volumes:
+      - /mnt/minio/data:/data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    networks:
+      - ai-net
+    deploy:
+      placement:
+        constraints: [node.hostname == ip-172-31-25-252]
+      restart_policy:
+        condition: on-failure
+
+  minio4:
+    image: minio/minio:latest
+    hostname: minio4
+    command: server --console-address ":9001" http://minio{1...4}/data
+    volumes:
+      - /mnt/minio/data:/data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
     ports:
       - "9000:9000"
       - "9001:9001"
     networks:
       - ai-net
-    volumes:
-      - /mnt/minio/data:/data
     deploy:
-      mode: replicated
-      replicas: 4
       placement:
-        max_replicas_per_node: 1
+        constraints: [node.hostname == ip-172-31-26-14]
       restart_policy:
         condition: on-failure
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
 
 networks:
   ai-net:

@@ -1,38 +1,76 @@
 ---
-- name: Uninstall Prefect Components
+# =====================================================================
+# Play 0: Clean up old Prefect 2 installations
+# =====================================================================
+- name: Uninstall Prefect 2 components and prepare for Prefect 3
   hosts: all
   become: true
+  tags: [prefect]
+  pre_tasks:
+    - name: Ensure pip and venv are installed
+      ansible.builtin.apt:
+        name:
+          - python3-pip
+          - python3-venv
+        state: present
+        update_cache: true
+
+    - name: Install jsondiff for Docker stack removal (manager only)
+      ansible.builtin.shell: |
+        python3 -m pip install jsondiff --break-system-packages || true
+      args:
+        executable: /bin/bash
+      when: "'managers' in group_names"
+      ignore_errors: true
+
   tasks:
-    - name: Remove Prefect stack from Swarm
+    - name: Remove old Prefect stack from Swarm (if present)
       community.docker.docker_stack:
         name: prefect_stack
         state: absent
       when: "'managers' in group_names"
       ignore_errors: true
 
-    - name: Stop and disable prefect-agent service
+    - name: Stop and disable Prefect agent service
       ansible.builtin.systemd:
         name: prefect-agent
         state: stopped
         enabled: false
       ignore_errors: true
 
-    - name: Stop and disable prefect-server service
+    - name: Stop and disable Prefect server service
       ansible.builtin.systemd:
         name: prefect-server
         state: stopped
         enabled: false
       ignore_errors: true
 
-    - name: Uninstall prefect pip package
-      ansible.builtin.pip:
-        name: prefect
+    - name: Uninstall any old Prefect packages (ignore PEP 668)
+      ansible.builtin.shell: |
+        python3 -m pip uninstall -y prefect --break-system-packages || true
+        python3 -m pip uninstall -y prefecthq --break-system-packages || true
+        python3 -m pip uninstall -y prefect2 --break-system-packages || true
+        python3 -m pip uninstall -y prefect-server --break-system-packages || true
+        python3 -m pip uninstall -y prefect-agent --break-system-packages || true
+      args:
+        executable: /bin/bash
+      ignore_errors: true
+
+    - name: Remove Prefect service and data directories
+      ansible.builtin.file:
+        path: "{{ item }}"
         state: absent
+      loop:
+        - /etc/systemd/system/prefect-agent.service
+        - /etc/systemd/system/prefect-server.service
+        - /opt/prefect
+        - /var/lib/prefect
       ignore_errors: true
 
 - name: Play 1 - Install Docker on all nodes
   hosts: all
   become: true
+  tags: [docker, minio, prefect]
   roles:
     - role: docker
 
@@ -50,17 +88,20 @@
 - name: Play 3 - Initialize Swarm on the manager node
   hosts: managers
   become: true
+  tags: [swarm, minio, prefect]
   roles:
     - role: swarm_manager
 
 - name: Play 4 - Join workers to the Swarm
   hosts: workers
   become: true
+  tags: [swarm, minio, prefect]
   roles:
     - role: swarm_worker
 
 - name: Play 5 - Deploy application stacks on the manager
   hosts: managers
   become: true
+  tags: [minio, prefect]
   roles:
     - role: stack_deploy

@@ -34,7 +34,13 @@ services:
 
   prefect-worker:
     image: prefecthq/prefect:3-latest
-    command: prefect worker start --pool my-docker-pool
+    command: >
+      /bin/sh -c "
+      echo 'Starting Prefect worker...';
+      until prefect worker start -p my-docker-pool; do
+        echo '⚠️ Prefect API not ready. Retrying in 5 seconds...';
+        sleep 5;
+      done"
     networks:
       - ai-net
     environment:
@@ -42,7 +48,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     deploy:
-      replicas: 2 # Start with 2 worker replicas, you can scale this later
+      replicas: 4 # Start with 2 worker replicas, you can scale this later
       placement:
         constraints:
           - node.role == worker
