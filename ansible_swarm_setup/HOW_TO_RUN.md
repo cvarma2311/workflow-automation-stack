@@ -4,7 +4,7 @@
 
 This guide provides detailed instructions on how to use the Ansible project in this directory to automatically deploy a full Docker Swarm cluster and run the MinIO and Prefect application stacks.
 
-The playbook automates everything from installing Docker on fresh Ubuntu VMs to deploying the final services. **This setup uses MinIO's native distributed mode, deploying one MinIO instance on each node of the cluster for a resilient and performant object store. It also ensures that the Prefect server runs on the manager node, while Prefect agents run on the worker nodes.**
+The playbook automates everything from installing Docker on fresh Ubuntu VMs to deploying the final services. **This setup uses MinIO's native distributed mode, deploying one MinIO instance on each node of the cluster for a resilient and performant object store. It also ensures that the Prefect server runs on the manager node, while Prefect workers (formerly agents) run on the worker nodes.**
 
 ## 2. Prerequisites
 
@@ -74,10 +74,24 @@ The playbook creates a directory on each node at `/mnt/minio/data` to be used by
 
 ## 4. Run the Deployment
 
-Once your configuration is complete, run the master playbook from the root of the `workflow-automation-stack` directory:
+Once your configuration is complete, you can run the master playbook.
+
+### 4.1. Full Deployment (MinIO + Prefect)
+
+To deploy or update the entire stack, run the following command from the root of the `workflow-automation-stack` directory:
 
 ```bash
 ansible-playbook -i ansible_swarm_setup/inventory.ini ansible_swarm_setup/setup_swarm.yml
+```
+
+### 4.2. Deploying Only Prefect
+
+If you want to deploy or update only the Prefect stack without disturbing an existing MinIO cluster, you can run the playbook and skip all MinIO-related tasks using Ansible tags.
+
+Use this command:
+
+```bash
+ansible-playbook -i ansible_swarm_setup/inventory.ini ansible_swarm_setup/setup_swarm.yml --skip-tags "minio"
 ```
 
 Ansible will now perform all steps automatically. This may take several minutes.
@@ -96,7 +110,7 @@ After the playbook finishes successfully:
 
 4.  **Verify Prefect Work Pool:**
     - In the Prefect UI, go to the **Work Pools** page.
-    - You should see the `my-docker-pool` already created and the agents connected to it, ready for work.
+    - You should see the `my-docker-pool` already created and the workers connected to it, ready for work.
 
 Your deployment is now complete and fully automated.
 
@@ -115,8 +129,8 @@ Your deployment is now complete and fully automated.
    # For the server
     docker service ps prefect_stack_prefect-server
    
-   # For the agent
-    docker service ps prefect_stack_prefect-agent
+   # For the worker
+    docker service ps prefect_stack_prefect-worker
 
    # For the database
     docker service ps prefect_stack_postgres
@@ -126,8 +140,8 @@ Your deployment is now complete and fully automated.
    # For the server
     docker service logs prefect_stack_prefect-server
 
-   # For the agent
-    docker service logs prefect_stack_prefect-agent
+   # For the worker
+    docker service logs prefect_stack_prefect-worker
 
    # For the database
     docker service logs prefect_stack_postgres

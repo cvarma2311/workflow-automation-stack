@@ -52,9 +52,9 @@ When you run the final `ansible-playbook` command, the following will happen aut
 6.  **Deploy Applications:** Finally, the `stack_deploy` role will run on the manager. It will:
     - Create the required Docker Secrets for MinIO credentials.
     - Copy the Docker Compose files to the manager.
-    - Execute `docker stack deploy` to launch the MinIO, Prefect Server, and Prefect Agent services onto the cluster. **MinIO will be deployed as a global service, with one instance on each node, running in its native distributed mode. The Prefect server will be constrained to the manager node, and Prefect agents will run on the worker nodes.**
+    - Execute `docker stack deploy` to launch the MinIO, Prefect Server, and Prefect Worker services onto the cluster. **MinIO will be deployed as a global service, with one instance on each node, running in its native distributed mode. The Prefect server will be constrained to the manager node, and Prefect workers will run on the worker nodes.**
 
-7.  **Create Prefect Work Pool:** After the Prefect server is running, a task will automatically create the `my-docker-pool` Docker work pool. This allows the Prefect agents to start polling for work immediately without any manual setup.
+7.  **Create Prefect Work Pool:** After the Prefect server is running, a task will automatically create the `my-docker-pool` Docker work pool. This allows the Prefect workers to start polling for work immediately without any manual setup.
 
 ## 4. Your Instructions
 

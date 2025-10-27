@@ -39,6 +39,7 @@
 - name: Play 2 - Create MinIO data directory on all nodes
   hosts: all
   become: true
+  tags: [minio]
   tasks:
     - name: Create local MinIO data directory
       ansible.builtin.file:

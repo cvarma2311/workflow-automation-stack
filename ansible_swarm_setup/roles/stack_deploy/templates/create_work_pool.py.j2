@@ -17,7 +17,7 @@ async def create_work_pool():
                     name=pool_name,
                     type="docker",
                     base_job_template={
-                        "image": "prefecthq/prefect:2-latest",
+                        "image": "prefecthq/prefect:3-latest",
                         "network_mode": "ai-net",
                     },
                 )

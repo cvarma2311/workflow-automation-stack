@@ -17,7 +17,7 @@ services:
           - node.role == manager
 
   prefect-server:
-    image: prefecthq/prefect:2-latest
+    image: prefecthq/prefect:3-latest
     command: prefect server start --host 0.0.0.0
     ports:
       - "4200:4200"
@@ -32,9 +32,9 @@ services:
         constraints:
           - node.role == manager
 
-  prefect-agent:
-    image: prefecthq/prefect:2-latest
-    command: prefect agent start -q my-docker-pool-queue
+  prefect-worker:
+    image: prefecthq/prefect:3-latest
+    command: prefect worker start --pool my-docker-pool
     networks:
       - ai-net
     environment:
@@ -42,7 +42,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     deploy:
-      replicas: 2 # Start with 2 agent replicas, you can scale this later
+      replicas: 2 # Start with 2 worker replicas, you can scale this later
       placement:
         constraints:
           - node.role == worker

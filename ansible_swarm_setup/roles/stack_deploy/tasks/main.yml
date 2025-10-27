@@ -37,17 +37,20 @@
     name: minio_root_user
     data: "{{ minio_root_user }}"
     state: present
+  tags: [minio]
 
 - name: Create MinIO root password secret
   community.docker.docker_secret:
     name: minio_root_password
     data: "{{ minio_root_password }}"
     state: present
+  tags: [minio]
 
 - name: Copy MinIO compose file to manager
   ansible.builtin.template:
     src: docker-compose.minio.yml.j2
     dest: /tmp/docker-compose.minio.yml
+  tags: [minio]
 
 - name: Deploy MinIO stack
   community.docker.docker_stack:
@@ -55,6 +58,7 @@
     state: present
     compose:
       - /tmp/docker-compose.minio.yml
+  tags: [minio]
 
 - name: Copy Prefect compose file to manager
   ansible.builtin.template:
