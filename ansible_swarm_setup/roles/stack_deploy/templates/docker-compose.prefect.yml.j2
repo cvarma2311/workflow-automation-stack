@@ -25,6 +25,8 @@ services:
       - ai-net
     environment:
       PREFECT_API_DATABASE_CONNECTION_URL: "postgresql+asyncpg://{{ postgres_user }}:{{ postgres_password }}@postgres:5432/prefect_server"
+      PREFECT_API_URL: "http://13.48.84.49:4200/api"
+      PREFECT_UI_API_URL: "http://13.48.84.49:4200/api"
     depends_on:
       - postgres
     deploy:
@@ -36,7 +38,7 @@ services:
     image: prefecthq/prefect:3-latest
     command: >
       /bin/sh -c "
-      echo 'Starting Prefect worker...';
+      echo 'Mounting urdhva_base and starting worker...';
       until prefect worker start -p my-docker-pool; do
         echo '⚠️ Prefect API not ready. Retrying in 5 seconds...';
         sleep 5;
@@ -45,10 +47,12 @@ services:
       - ai-net
     environment:
       PREFECT_API_URL: http://prefect-server:4200/api
+      PYTHONPATH: /opt/urdhva_base
     volumes:
+      - /opt/urdhva_base:/opt/urdhva_base
       - /var/run/docker.sock:/var/run/docker.sock
     deploy:
-      replicas: 4 # Start with 2 worker replicas, you can scale this later
+      replicas: 4
       placement:
         constraints:
           - node.role == worker
