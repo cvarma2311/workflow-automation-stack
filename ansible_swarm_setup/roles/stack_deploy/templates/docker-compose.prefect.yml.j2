@@ -29,6 +29,8 @@ services:
       PREFECT_UI_API_URL: "http://13.48.84.49:4200/api"
     depends_on:
       - postgres
+    volumes:
+      - /opt/urdhva_base:/opt/urdhva_base:ro
     deploy:
       placement:
         constraints:
@@ -49,7 +51,7 @@ services:
       PREFECT_API_URL: http://prefect-server:4200/api
       PYTHONPATH: /opt/urdhva_base
     volumes:
-      - /opt/urdhva_base:/opt/urdhva_base
+      - /opt/urdhva_base:/opt/urdhva_base:ro
       - /var/run/docker.sock:/var/run/docker.sock
     deploy:
       replicas: 4
