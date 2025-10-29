@@ -92,6 +92,36 @@
   roles:
     - role: swarm_manager
 
+# =====================================================================
+# Play 3.5 - Distribute manager's SSH key to all workers
+# =====================================================================
+- name: Distribute manager's SSH key to all workers
+  hosts: managers
+  become: true
+  tags: [ssh]
+  tasks:
+    - name: Ensure manager has SSH key pair
+      ansible.builtin.openssh_keypair:
+        path: /home/ubuntu/.ssh/id_rsa
+        owner: ubuntu
+        group: ubuntu
+        type: rsa
+        size: 4096
+        mode: '0600'
+      become_user: ubuntu
+
+    - name: Read manager's public key
+      ansible.builtin.slurp:
+        src: /home/ubuntu/.ssh/id_rsa.pub
+      register: manager_pubkey
+
+    - name: Add manager's public key to all workers' authorized_keys
+      delegate_to: "{{ item }}"
+      ansible.builtin.authorized_key:
+        user: ubuntu
+        key: "{{ manager_pubkey['content'] | b64decode }}"
+      loop: "{{ groups['workers'] }}"
+
 - name: Play 4 - Join workers to the Swarm
   hosts: workers
   become: true
@@ -105,3 +135,39 @@
   tags: [minio, prefect]
   roles:
     - role: stack_deploy
+
+# =====================================================================
+# Play 6: Distribute custom image
+# =====================================================================
+- name: Play 6 - Push Datafusion API image tarball to workers
+  hosts: managers
+  become: true
+  tags: ["datafusion"]
+  tasks:
+    - name: Copy tarball to all workers
+      become_user: ubuntu
+      ansible.builtin.shell: |
+        {% for worker in groups['workers'] %}
+        echo "Copying to {{ hostvars[worker].ansible_host }}...";
+        scp -i /home/ubuntu/.ssh/id_rsa -o StrictHostKeyChecking=no /tmp/datafusion_api_server.tar.gz ubuntu@{{ hostvars[worker].ansible_host }}:/tmp/datafusion_api_server.tar.gz;
+        {% endfor %}
+      args:
+        executable: /bin/bash
+
+- name: Play 7 - Load Datafusion API image tarball into Docker
+  hosts: all
+  become: true
+  tags: ["datafusion", "docker-image"]
+  tasks:
+    - name: Ensure tarball exists
+      ansible.builtin.stat:
+        path: /tmp/datafusion_api_server.tar.gz
+      register: image_tar
+
+    - name: Load Docker image from tarball
+      ansible.builtin.shell: |
+        echo "Loading Datafusion API Docker image..."
+        docker load -i /tmp/datafusion_api_server.tar.gz
+      args:
+        executable: /bin/bash
+      when: image_tar.stat.exists

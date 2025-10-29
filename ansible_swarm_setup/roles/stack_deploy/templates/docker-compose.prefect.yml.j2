@@ -17,7 +17,7 @@ services:
           - node.role == manager
 
   prefect-server:
-    image: prefecthq/prefect:3-latest
+    image: algofusion/datafusion_api_server
     command: prefect server start --host 0.0.0.0
     ports:
       - "4200:4200"
@@ -33,7 +33,7 @@ services:
           - node.role == manager
 
   prefect-worker:
-    image: prefecthq/prefect:3-latest
+    image: algofusion/datafusion_api_server
     command: >
       /bin/sh -c "
       echo 'Starting Prefect worker...';
@@ -45,10 +45,8 @@ services:
       - ai-net
     environment:
       PREFECT_API_URL: http://prefect-server:4200/api
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
     deploy:
-      replicas: 4 # Start with 2 worker replicas, you can scale this later
+      replicas: 4
       placement:
         constraints:
           - node.role == worker
