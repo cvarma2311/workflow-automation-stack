@@ -81,9 +81,15 @@
 
 - name: Wait for Prefect API to be available
   ansible.builtin.wait_for:
+    host: "{{ ansible_host }}"
     port: 4200
     delay: 10
-    timeout: 60
+    timeout: 120
+    state: started
+  register: wait_result
+  retries: 5
+  delay: 15
+  until: wait_result is success
   tags: [prefect]
 
 - name: Copy work pool creation script to manager
