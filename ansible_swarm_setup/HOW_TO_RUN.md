@@ -100,6 +100,21 @@ To deploy or update only the MinIO stack, run the playbook and specify the `mini
 ansible-playbook -i ansible_swarm_setup/inventory.ini ansible_swarm_setup/setup_swarm.yml --tags "minio"
 ```
 
+### 4.4. Deploying the Monitoring Stack
+
+This project includes a monitoring stack based on Prometheus and Grafana to provide visibility into container and host metrics. To deploy it, use the `monitoring` tag.
+
+```bash
+ansible-playbook -i ansible_swarm_setup/inventory.ini ansible_swarm_setup/setup_swarm.yml --tags "monitoring"
+```
+
+Once deployed, you can access the Grafana dashboard by navigating to `http://<your_manager_ip>:3000`.
+
+- **User:** `admin`
+- **Password:** `grafana`
+
+The Docker Swarm dashboard should be pre-loaded, allowing you to immediately see CPU, memory, and network usage for all containers.
+
 Ansible will now perform all steps automatically. This may take several minutes.
 
 ## 5. Post-Deployment Verification

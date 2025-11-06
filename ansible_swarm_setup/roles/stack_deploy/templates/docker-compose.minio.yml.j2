@@ -17,6 +17,10 @@ services:
         constraints: [node.hostname == ip-172-31-19-78]
       restart_policy:
         condition: on-failure
+      resources:
+        reservations:
+          cpus: '0.25'
+          memory: 512M
 
   minio2:
     image: minio/minio:latest
@@ -34,6 +38,10 @@ services:
         constraints: [node.hostname == ip-172-31-18-83]
       restart_policy:
         condition: on-failure
+      resources:
+        reservations:
+          cpus: '0.25'
+          memory: 512M
 
   minio3:
     image: minio/minio:latest
@@ -51,6 +59,10 @@ services:
         constraints: [node.hostname == ip-172-31-25-252]
       restart_policy:
         condition: on-failure
+      resources:
+        reservations:
+          cpus: '0.25'
+          memory: 512M
 
   minio4:
     image: minio/minio:latest
@@ -71,6 +83,10 @@ services:
         constraints: [node.hostname == ip-172-31-26-14]
       restart_policy:
         condition: on-failure
+      resources:
+        reservations:
+          cpus: '0.25'
+          memory: 512M
 
 networks:
   ai-net:

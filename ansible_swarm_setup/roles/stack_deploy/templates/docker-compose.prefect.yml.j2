@@ -9,12 +9,14 @@ services:
       POSTGRES_USER: "{{ postgres_user }}"
       POSTGRES_PASSWORD: "{{ postgres_password }}"
       POSTGRES_DB: prefect_server
-    volumes:
-      - prefect-db:/var/lib/postgresql/data
     deploy:
       placement:
         constraints:
           - node.role == manager
+      resources:
+        reservations:
+          cpus: '0.50'
+          memory: 512M
 
   prefect-server:
     image: algofusion/datafusion_api_server

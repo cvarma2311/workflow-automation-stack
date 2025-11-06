@@ -136,6 +136,78 @@
   roles:
     - role: stack_deploy
 
+- name: Play 6 - Deploy Monitoring Stack
+  hosts: managers
+  become: true
+  tags: [monitoring]
+  tasks:
+    - name: Ensure monitoring stack is stopped
+      community.docker.docker_stack:
+        name: monitoring_stack
+        state: absent
+      ignore_errors: true
+
+    - name: Prune Grafana volume for a clean deployment
+      community.docker.docker_volume:
+        name: monitoring_stack_grafana-data
+        state: absent
+      ignore_errors: true
+
+    - name: Copy monitoring configuration files
+      ansible.builtin.template:
+        src: "{{ item.src }}"
+        dest: "/tmp/{{ item.dest }}"
+      loop:
+        - { src: 'templates/prometheus.yml.j2', dest: 'prometheus.yml' }
+        - { src: 'templates/grafana-datasources.yml.j2', dest: 'grafana-datasources.yml' }
+        - { src: 'templates/grafana-dashboards.yml.j2', dest: 'grafana-dashboards.yml' }
+        - { src: 'templates/docker-swarm-dashboard.json.j2', dest: 'docker-swarm-dashboard.json' }
+
+    - name: Copy monitoring stack compose file
+      ansible.builtin.copy:
+        src: monitoring-stack.yml
+        dest: /tmp/monitoring-stack.yml
+
+    - name: Deploy the monitoring stack
+      community.docker.docker_stack:
+        name: monitoring_stack
+        state: present
+        compose:
+          - /tmp/monitoring-stack.yml
+    - name: Wait for Grafana service to be healthy
+      ansible.builtin.wait_for:
+        host: "{{ ansible_host }}"
+        port: 3000
+        delay: 10
+        timeout: 60
+
+    - name: Ensure Prometheus datasource exists in Grafana
+      uri:
+        url: "http://localhost:3000/api/datasources"
+        method: POST
+        user: admin
+        password: grafana
+        force_basic_auth: yes
+        headers:
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          name: "Prometheus"
+          type: "prometheus"
+          access: "proxy"
+          url: "http://prometheus:9090"
+          isDefault: true
+        status_code: [200, 409]
+      register: datasource_response
+      retries: 3
+      delay: 5
+      until: datasource_response.status == 200 or datasource_response.status == 409
+
+    - name: Log datasource creation result
+      debug:
+        msg: "Prometheus datasource creation status: {{ datasource_response.status }}"
+
+
 # =====================================================================
 # Play 6: Distribute custom image
 # =====================================================================
