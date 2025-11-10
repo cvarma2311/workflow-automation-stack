@@ -91,6 +91,36 @@
   tags: [swarm, minio, prefect]
   roles:
     - role: swarm_manager
+# =====================================================================
+# Play 3.2 - Ensure workers rejoin the Swarm and ai-net overlay network exists
+# =====================================================================
+- name: Ensure all nodes are joined to the Swarm and ai-net exists
+  hosts: managers
+  become: true
+  tags: [swarm, network, join]
+  tasks:
+
+    # Get join token from the current manager
+    - name: Get Docker Swarm join token for workers
+      ansible.builtin.command: docker swarm join-token -q worker
+      register: swarm_worker_token
+      changed_when: false
+
+    - name: Show token for debugging
+      ansible.builtin.debug:
+        msg: "Worker join token: {{ swarm_worker_token.stdout }}"
+
+    # Distribute and rejoin all workers dynamically
+    - name: Rejoin all worker nodes to the Swarm
+      delegate_to: "{{ item }}"
+      become: true
+      ansible.builtin.shell: |
+        docker swarm leave --force || true
+        docker swarm join --token {{ swarm_worker_token.stdout }} {{ hostvars[inventory_hostname].ansible_host }}:2377 || true
+      loop: "{{ groups['workers'] }}"
+      ignore_errors: true
+      args:
+        executable: /bin/bash
 
 # =====================================================================
 # Play 3.5 - Distribute manager's SSH key to all workers
@@ -221,7 +251,7 @@
       ansible.builtin.shell: |
         {% for worker in groups['workers'] %}
         echo "Copying to {{ hostvars[worker].ansible_host }}...";
-        scp -i /home/ubuntu/.ssh/id_rsa -o StrictHostKeyChecking=no /tmp/datafusion_api_server.tar.gz ubuntu@{{ hostvars[worker].ansible_host }}:/tmp/datafusion_api_server.tar.gz;
+        scp -i /home/ubuntu/.ssh/id_rsa -o StrictHostKeyChecking=no /tmp/datafusion_api_server.tar.gz ubuntu@{{ hostvars[worker].ansible_host }}:/home/ubuntu/datafusion_api_server.tar.gz;
         {% endfor %}
       args:
         executable: /bin/bash
@@ -233,13 +263,13 @@
   tasks:
     - name: Ensure tarball exists
       ansible.builtin.stat:
-        path: /tmp/datafusion_api_server.tar.gz
+        path: /home/ubuntu/datafusion_api_server.tar.gz
       register: image_tar
 
     - name: Load Docker image from tarball
       ansible.builtin.shell: |
         echo "Loading Datafusion API Docker image..."
-        docker load -i /tmp/datafusion_api_server.tar.gz
+        docker load -i /home/ubuntu/datafusion_api_server.tar.gz
       args:
         executable: /bin/bash
       when: image_tar.stat.exists

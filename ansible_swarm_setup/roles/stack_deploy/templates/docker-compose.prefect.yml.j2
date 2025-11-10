@@ -13,24 +13,19 @@ services:
       placement:
         constraints:
           - node.role == manager
-      resources:
-        reservations:
-          cpus: '0.50'
-          memory: 512M
 
   prefect-server:
     image: algofusion/datafusion_api_server
     command: >
       /bin/sh -c "
-      pip install --no-cache-dir prefect-aws &&
       prefect server start --host 0.0.0.0"
     ports:
       - "4200:4200"
     networks:
       - ai-net
     environment:
-      PREFECT_API_URL: "http://13.48.84.49:4200/api"
-      PREFECT_UI_API_URL: "http://13.48.84.49:4200/api"
+      PREFECT_API_URL: "http://18.61.15.199:4200/api"
+      PREFECT_UI_API_URL: "http://18.61.15.199:4200/api"
       PREFECT_API_DATABASE_CONNECTION_URL: "postgresql+asyncpg://{{ postgres_user }}:{{ postgres_password }}@postgres:5432/prefect_server"
     depends_on:
       - postgres
@@ -43,7 +38,6 @@ services:
     image: algofusion/datafusion_api_server
     command: >
       /bin/sh -c "
-      pip install --no-cache-dir prefect-aws &&
       echo 'Starting Prefect worker...';
       until prefect worker start -p my-docker-pool; do
         echo '⚠️ Prefect API not ready. Retrying in 5 seconds...';
@@ -52,7 +46,7 @@ services:
     networks:
       - ai-net
     environment:
-      PREFECT_API_URL: "http://13.48.84.49:4200/api"
+      PREFECT_API_URL: "http://18.61.15.199:4200/api"
     deploy:
       replicas: 4
       placement:

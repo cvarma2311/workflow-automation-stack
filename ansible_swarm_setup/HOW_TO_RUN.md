@@ -139,6 +139,7 @@ After the playbook finishes successfully:
     b. **Add your cluster as an alias:**
     ```bash
     mc alias set minio http://localhost:9000 minioadmin minioadmin
+    mc alias set minio http://172.31.9.234:9000 minioadmin minioadmin
     ```
     *(Note: Replace `minioadmin minioadmin` if you changed the default credentials in the playbook).*
 

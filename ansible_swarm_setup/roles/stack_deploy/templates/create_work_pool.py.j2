@@ -1,28 +1,45 @@
-
 import asyncio
-import os
 from prefect.client.orchestration import get_client
-from prefect.server.schemas.actions import WorkPoolCreate
+from prefect.client.schemas.actions import WorkPoolCreate
 
 async def create_work_pool():
-    pool_name = "my-docker-pool"
     async with get_client() as client:
+        pool_name = "my-docker-pool"
+
+        base_job_template = {
+            "job_configuration": {
+                "image": "algofusion/datafusion_api_server",
+                "command": ["prefect", "flow-run", "execute"],
+                "env": {
+                    "PREFECT_API_URL": "http://18.61.15.199:4200/api",
+                    "PREFECT_LOGGING_LEVEL": "INFO"
+                },
+                "network_mode": "ai-net",
+                "auto_remove": True
+            },
+            "variables": {
+                "type": "object",
+                "properties": {
+                    "image": {"type": "string", "default": "algofusion/datafusion_api_server"},
+                    "command": {"type": "array", "items": {"type": "string"}},
+                    "env": {"type": "object"},
+                    "network_mode": {"type": "string", "default": "ai-net"}
+                }
+            }
+        }
+
         try:
-            await client.read_work_pool(pool_name)
-            print(f"Work pool '{pool_name}' already exists.")
-        except Exception:
             print(f"Creating work pool '{pool_name}'...")
             await client.create_work_pool(
-                work_pool=WorkPoolCreate(
+                WorkPoolCreate(
                     name=pool_name,
                     type="docker",
-                    base_job_template={
-                        "image": "prefecthq/prefect:3-latest",
-                        "network_mode": "ai-net",
-                    },
+                    base_job_template=base_job_template
                 )
             )
-            print(f"Work pool '{pool_name}' created.")
+            print(f"✅ Successfully created work pool '{pool_name}'")
+        except Exception as e:
+            print(f"⚠️ Work pool '{pool_name}' may already exist or failed: {e}")
 
 if __name__ == "__main__":
     asyncio.run(create_work_pool())

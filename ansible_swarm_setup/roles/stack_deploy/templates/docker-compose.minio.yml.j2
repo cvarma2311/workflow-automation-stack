@@ -10,17 +10,17 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_BOOTSTRAP: on
     networks:
       - ai-net
     deploy:
       placement:
-        constraints: [node.hostname == ip-172-31-19-78]
+        constraints:
+          - node.hostname == ip-172-31-9-234
       restart_policy:
         condition: on-failure
-      resources:
-        reservations:
-          cpus: '0.25'
-          memory: 512M
+        delay: 5s
+        max_attempts: 3
 
   minio2:
     image: minio/minio:latest
@@ -31,17 +31,17 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_BOOTSTRAP: on
     networks:
       - ai-net
     deploy:
       placement:
-        constraints: [node.hostname == ip-172-31-18-83]
+        constraints:
+          - node.hostname == ip-172-31-0-173
       restart_policy:
         condition: on-failure
-      resources:
-        reservations:
-          cpus: '0.25'
-          memory: 512M
+        delay: 5s
+        max_attempts: 3
 
   minio3:
     image: minio/minio:latest
@@ -52,17 +52,17 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_BOOTSTRAP: on
     networks:
       - ai-net
     deploy:
       placement:
-        constraints: [node.hostname == ip-172-31-25-252]
+        constraints:
+          - node.hostname == ip-172-31-15-50
       restart_policy:
         condition: on-failure
-      resources:
-        reservations:
-          cpus: '0.25'
-          memory: 512M
+        delay: 5s
+        max_attempts: 3
 
   minio4:
     image: minio/minio:latest
@@ -73,6 +73,7 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_BOOTSTRAP: on
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -80,13 +81,12 @@ services:
       - ai-net
     deploy:
       placement:
-        constraints: [node.hostname == ip-172-31-26-14]
+        constraints:
+          - node.hostname == ip-172-31-10-183
       restart_policy:
         condition: on-failure
-      resources:
-        reservations:
-          cpus: '0.25'
-          memory: 512M
+        delay: 5s
+        max_attempts: 3
 
 networks:
   ai-net:
