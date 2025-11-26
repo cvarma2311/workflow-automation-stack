@@ -1,0 +1,41 @@
+---
+- name: Setup Environment for Hybrid Prefect+Java Workflow
+  hosts: local
+  tasks:
+    - name: Update package cache (for Debian/Ubuntu)
+      ansible.builtin.apt:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Install dependencies (for Debian/Ubuntu)
+      ansible.builtin.apt:
+        name:
+          - openjdk-17-jdk
+          - maven
+          - python3-pip
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Install dependencies (for RedHat/CentOS)
+      ansible.builtin.yum:
+        name:
+          - java-17-openjdk-devel
+          - maven
+          - python3-pip
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    - name: Install dependencies (for macOS)
+      community.general.homebrew:
+        name:
+          - openjdk@17
+          - maven
+          - python@3
+        state: present
+      when: ansible_os_family == "Darwin"
+
+    - name: Install required Python packages
+      ansible.builtin.pip:
+        name:
+          - prefect==3.4.19
+        executable: pip3
