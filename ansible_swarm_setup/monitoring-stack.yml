@@ -9,13 +9,21 @@ volumes:
     driver: local
   grafana-data:
     driver: local
+  loki-data:
+    driver: local
+
+configs:
+  promtail-config:
+    external: true
+  loki-config:
+    external: true
 
 services:
   prometheus:
     image: prom/prometheus:v2.47.0
     volumes:
-      - /tmp/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus-data:/prometheus
+      - /tmp/prometheus.yml:/etc/prometheus/prometheus.yml
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -32,14 +40,55 @@ services:
       restart_policy:
         condition: on-failure
 
+  loki:
+    image: grafana/loki:2.9.2
+    ports:
+      - "3100:3100"
+    configs:
+      - source: loki-config
+        target: /etc/loki/config.yml
+    volumes:
+      - loki-data:/loki
+    command: -config.file=/etc/loki/config.yml
+    networks:
+      - monitoring
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+
+  promtail:
+    image: grafana/promtail:2.9.2
+    configs:
+      - source: promtail-config
+        target: /etc/promtail/config.yml
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/containers:/var/lib/docker/containers
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - monitoring
+    deploy:
+      mode: global
+      restart_policy:
+        condition: on-failure
+
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.47.2
     ports:
       - "8081:8080"
     hostname: '{{.Node.Hostname}}'
-    command: 
-      - '--docker_only=true'
-      - '--store_container_labels=false'
+    command:
+      - "--docker=tcp://ip-172-31-9-234:2375"  # 👈 Update with your manager private IP
+      - "--housekeeping_interval=30s"
+      - "--global_housekeeping_interval=30s"
+      - "--docker_only=true"
+      - "--store_container_labels=false"
+      - "--disable_metrics=percpu,sched,process"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:rw
@@ -48,7 +97,11 @@ services:
     networks:
       - monitoring
     deploy:
-      mode: global
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
       restart_policy:
         condition: on-failure
 
@@ -79,9 +132,24 @@ services:
       - /tmp/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
       - /tmp/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
       - /tmp/docker-swarm-dashboard.json:/var/lib/grafana/dashboards/docker-swarm-dashboard.json
+      - /tmp/grafana-loki-dashboard.json:/var/lib/grafana/dashboards/grafana-loki-dashboard.json
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=grafana
+    networks:
+      - monitoring
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+
+  docker-api-check:
+    image: curlimages/curl:8.5.0
+    command: ["curl", "-s", "http://ip-172-31-9-234:2375/version"]
     networks:
       - monitoring
     deploy:

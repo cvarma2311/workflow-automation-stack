@@ -19,3 +19,19 @@ scrape_configs:
           - 'tasks.node-exporter'
         type: 'A'
         port: 9100
+
+  - job_name: 'minio'
+    metrics_path: '/minio/v2/metrics/cluster'
+    dns_sd_configs:
+      - names:
+          - 'tasks.minio_stack_minio'
+        type: 'A'
+        port: 9000
+
+  - job_name: 'prefect-server'
+    metrics_path: '/metrics'
+    dns_sd_configs:
+      - names:
+          - 'tasks.prefect_stack_prefect-server'
+        type: 'A'
+        port: 4200

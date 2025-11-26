@@ -153,6 +153,8 @@ After the playbook finishes successfully:
 4.  **Access Web UIs:**
     - **MinIO:** `http://<IP_of_ANY_swarm_node>:9001`
     - **Prefect:** `http://<IP_of_ANY_swarm_node>:4200`
+    - **cAdvisor:** `http://<IP_of_ANY_swarm_node>:8081` (Runs on all nodes)
+    - **Prometheus:** `http://<IP_of_MANAGER_NODE>:9090` (Runs only on the manager node)
 
 5.  **Verify Prefect Work Pool:**
     - In the Prefect UI, go to the **Work Pools** page.

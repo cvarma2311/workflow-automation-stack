@@ -1,6 +1,44 @@
 ---
 # tasks file for roles/stack_deploy
 
+# =====================================================================
+# Play 0 – Enable Docker Remote API for cluster-wide monitoring
+# =====================================================================
+- name: Enable Docker Remote API (tcp://0.0.0.0:2375)
+  become: true
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    content: |
+      {
+        "hosts": ["unix:///var/run/docker.sock", "tcp://0.0.0.0:2375"]
+      }
+    owner: root
+    group: root
+    mode: '0644'
+  register: docker_daemon_config
+
+- name: Restart Docker daemon if configuration changed
+  become: true
+  ansible.builtin.systemd:
+    name: docker
+    state: restarted
+    enabled: true
+  when: docker_daemon_config.changed
+
+# Restrict Docker API to internal subnet (optional hardening)
+- name: Restrict Docker TCP API to private subnet
+  become: true
+  ansible.builtin.shell: |
+    ufw allow from 172.31.0.0/16 to any port 2375 proto tcp
+    ufw deny 2375/tcp
+  args:
+    executable: /bin/bash
+  ignore_errors: true
+  when: "'managers' in group_names"
+
+# =====================================================================
+# Play 1 – Prepare environment for Prefect/MinIO/Monitoring stacks
+# =====================================================================
 - name: Ensure python3-venv and pip are installed
   ansible.builtin.apt:
     name:
@@ -8,25 +46,25 @@
       - python3-pip
     state: present
     update_cache: true
-  tags: [minio, prefect]
+  tags: [minio, prefect, monitoring]
 
 - name: Create a virtual environment for Ansible Docker modules
   ansible.builtin.command: python3 -m venv /opt/ansible-env
   args:
     creates: /opt/ansible-env
-  tags: [minio, prefect]
+  tags: [minio, prefect, monitoring]
 
 - name: Install required Python packages inside the virtual environment
   ansible.builtin.command: >
     /opt/ansible-env/bin/pip install docker jsondiff requests prefect
   args:
     creates: /opt/ansible-env/lib/python3.*/site-packages/prefect
-  tags: [prefect]
+  tags: [prefect, monitoring]
 
 - name: Set Python interpreter for Ansible to use the venv
   ansible.builtin.set_fact:
     ansible_python_interpreter: /opt/ansible-env/bin/python
-  tags: [prefect]
+  tags: [prefect, monitoring]
 
 - name: Define credentials
   ansible.builtin.set_fact:
@@ -37,6 +75,9 @@
   run_once: true
   tags: [minio, prefect]
 
+# =====================================================================
+# Play 2 – Deploy MinIO Stack
+# =====================================================================
 - name: Create MinIO root user secret
   community.docker.docker_secret:
     name: minio_root_user
@@ -65,6 +106,9 @@
       - /tmp/docker-compose.minio.yml
   tags: [minio]
 
+# =====================================================================
+# Play 3 – Deploy Prefect Stack
+# =====================================================================
 - name: Copy Prefect compose file to manager
   ansible.builtin.template:
     src: docker-compose.prefect.yml.j2
@@ -105,3 +149,54 @@
     PREFECT_API_URL: http://localhost:4200/api
   changed_when: false
   tags: [prefect]
+
+# =====================================================================
+# Play 4 – Deploy Monitoring Stack (Prometheus + Loki + Promtail + Grafana + cAdvisor)
+# =====================================================================
+- name: Remove old monitoring stack (to avoid mode conflicts)
+  community.docker.docker_stack:
+    name: monitoring_stack
+    state: absent
+  ignore_errors: true
+  tags: [monitoring]
+
+- name: Ensure Loki config exists
+  community.docker.docker_config:
+    name: loki-config
+    data: "{{ lookup('file', 'loki-config.yml') }}"
+    state: present
+  tags: [monitoring]
+
+- name: Ensure Promtail config exists
+  community.docker.docker_config:
+    name: promtail-config
+    data: "{{ lookup('file', 'promtail-config.yml') }}"
+    state: present
+  tags: [monitoring]
+
+- name: Copy monitoring stack compose file
+  ansible.builtin.copy:
+    src: monitoring-stack.yml
+    dest: /tmp/monitoring-stack.yml
+  tags: [monitoring]
+
+- name: Deploy monitoring stack
+  community.docker.docker_stack:
+    name: monitoring_stack
+    state: present
+    compose:
+      - /tmp/monitoring-stack.yml
+  register: deploy_result
+  retries: 3
+  delay: 10
+  until: deploy_result is succeeded
+  tags: [monitoring]
+
+- name: Wait for Grafana to be reachable
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host }}"
+    port: 3000
+    delay: 10
+    timeout: 120
+    state: started
+  tags: [monitoring]
