@@ -2,9 +2,9 @@
 
 ## 1. Introduction
 
-This guide provides detailed instructions on how to use the Ansible project in this directory to automatically deploy a full Docker Swarm cluster and run the MinIO and Prefect application stacks. 
+This guide provides detailed instructions on how to use the Ansible project in this directory to automatically deploy a full Docker Swarm cluster, run the MinIO and Prefect application stacks, and install InfluxDB 3 on the manager node.
 
-The playbook automates everything from installing Docker on fresh Ubuntu VMs to deploying the final services.
+The playbook automates everything from installing Docker on fresh Ubuntu VMs to deploying the final services. At the end of the run, it also prints the host inventory, SSH connection commands, service URLs, and the manager commands you are most likely to use next.
 
 ## 2. Prerequisites
 
@@ -89,6 +89,30 @@ ansible-playbook -i ansible_swarm_setup/inventory.ini ansible_swarm_setup/setup_
 
 Ansible will now perform all steps automatically. This may take several minutes.
 
+InfluxDB 3 is installed on the manager only. The playbook uses the official quick installer in install-only mode, then prints the binary path, version, API URL, and a ready-to-run SSH command you can use to start it on the manager later.
+
+Intent: full swarm bootstrap. This installs Docker on all configured nodes, initializes the manager, joins workers, deploys the MinIO and Prefect stacks, installs InfluxDB 3 on the manager, and prints host and connection details at the end.
+
+### 4.1 Install Only InfluxDB
+
+If you only want the manager-side InfluxDB install and its connection details, run:
+
+```bash
+ansible-playbook -i ansible_swarm_setup/inventory.ini ansible_swarm_setup/install_influxdb.yml
+```
+
+This skips Docker, Swarm, MinIO, and Prefect entirely and only runs the InfluxDB manager install plus a focused summary.
+
+Intent: manager-only InfluxDB bootstrap. Use this when you only want the InfluxDB 3 binary installed on the manager and do not want any Swarm or application deployment.
+
+After the Influx-only install, start the server with the SSH command printed in the summary, or use this equivalent form after replacing the SSH identity, user, manager host, and node ID values for your environment:
+
+```bash
+ssh -i ~/.ssh/manager.key ubuntu@<manager_ip> 'mkdir -p ~/.influxdb/logs && nohup ~/.influxdb/influxdb3 serve --node-id manager-1 --http-bind 0.0.0.0:8181 --object-store file --data-dir ~/.influxdb/data > ~/.influxdb/logs/influxdb3.log 2>&1 &'
+```
+
+Intent: start the InfluxDB 3 server process on the manager after the install-only playbook has finished.
+
 ## 5. Post-Deployment Verification
 
 After the playbook finishes successfully:
@@ -100,6 +124,7 @@ After the playbook finishes successfully:
 3.  **Access Web UIs:**
     - **MinIO:** `http://<IP_of_storage_node>:9001`
     - **Prefect:** `http://<IP_of_any_swarm_node>:4200`
+    - **InfluxDB 3:** `http://<IP_of_manager_node>:8181` (after starting the server with the printed SSH command)
 
 4.  **Final Prefect Setup (One-time):**
     - In the Prefect UI, go to the **Work Pools** page.

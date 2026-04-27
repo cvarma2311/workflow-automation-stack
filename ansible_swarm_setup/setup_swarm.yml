@@ -22,3 +22,15 @@
   become: true
   roles:
     - role: stack_deploy
+
+- name: Play 5 - Install InfluxDB on the manager
+  hosts: managers
+  become: false
+  roles:
+    - role: influxdb_manager
+
+- name: Play 6 - Print deployment summary and connection details
+  hosts: managers
+  become: false
+  roles:
+    - role: deployment_summary

@@ -189,6 +189,30 @@ Ansible connects to your VMs via SSH. For a smooth, passwordless experience, it'
         bash /opt/prefect/jobs/run_employee_job.sh
         ```
 
+### Docker Swarm Automation
+
+This repository also contains a separate Docker Swarm automation flow under `ansible_swarm_setup/`.
+
+```bash
+ansible-playbook -i ansible_swarm_setup/inventory.ini ansible_swarm_setup/setup_swarm.yml
+```
+
+Intent: full Swarm bootstrap. This installs Docker on all listed nodes, initializes the manager, joins workers, deploys the MinIO and Prefect stacks, installs InfluxDB 3 on the manager, and prints host details plus connection commands at the end.
+
+```bash
+ansible-playbook -i ansible_swarm_setup/inventory.ini ansible_swarm_setup/install_influxdb.yml
+```
+
+Intent: InfluxDB-only manager setup. This skips Docker, Swarm, MinIO, and Prefect, installs only InfluxDB 3 on the manager node, and prints the SSH command, binary path, version, API URL, and the manager command to start the server.
+
+After the Influx-only install, start the server on the manager with the command printed by the playbook summary, or run this form manually after substituting your manager SSH details:
+
+```bash
+ssh -i ~/.ssh/manager.key ubuntu@<manager_ip> 'mkdir -p ~/.influxdb/logs && nohup ~/.influxdb/influxdb3 serve --node-id manager-1 --http-bind 0.0.0.0:8181 --object-store file --data-dir ~/.influxdb/data > ~/.influxdb/logs/influxdb3.log 2>&1 &'
+```
+
+Intent: start the InfluxDB 3 API on the manager after the installer has completed in install-only mode.
+
 ---
 
 ## 4) Notes
