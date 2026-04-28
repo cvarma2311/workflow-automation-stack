@@ -1,0 +1,60 @@
+---
+# tasks file for roles/influxdb_manager
+
+- name: Check whether the InfluxDB binary already exists
+  ansible.builtin.stat:
+    path: "{{ influxdb_binary_path }}"
+  register: influxdb_binary
+
+- name: Download the InfluxDB installer with curl on macOS
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -fsSL
+      - "{{ influxdb_installer_url }}"
+      - -o
+      - "{{ influxdb_installer_script_path }}"
+  when:
+    - not influxdb_binary.stat.exists
+    - ansible_system == 'Darwin'
+
+- name: Download the InfluxDB installer with get_url on Linux
+  ansible.builtin.get_url:
+    url: "{{ influxdb_installer_url }}"
+    dest: "{{ influxdb_installer_script_path }}"
+    mode: '0755'
+  when:
+    - not influxdb_binary.stat.exists
+    - ansible_system != 'Darwin'
+
+- name: Install InfluxDB in install-only mode
+  ansible.builtin.shell:
+    cmd: sh "{{ influxdb_installer_script_path }}"
+    executable: /bin/sh
+    creates: "{{ influxdb_binary_path }}"
+    stdin: |
+      2
+      3
+  environment:
+    HOME: "{{ ansible_env.HOME }}"
+    SHELL: "{{ ansible_env.SHELL | default('/bin/bash') }}"
+  when: not influxdb_binary.stat.exists
+
+- name: Remove the downloaded InfluxDB installer
+  ansible.builtin.file:
+    path: "{{ influxdb_installer_script_path }}"
+    state: absent
+  when: not influxdb_binary.stat.exists
+
+- name: Capture the installed InfluxDB version
+  ansible.builtin.command: "{{ influxdb_binary_path }} --version"
+  register: influxdb_version
+  changed_when: false
+
+- name: Store InfluxDB connection details for the deployment summary
+  ansible.builtin.set_fact:
+    influxdb_install_root_fact: "{{ influxdb_install_root }}"
+    influxdb_binary_path_fact: "{{ influxdb_binary_path }}"
+    influxdb_http_port_fact: "{{ influxdb_http_port }}"
+    influxdb_http_url_fact: "http://{{ ansible_host | default(inventory_hostname) }}:{{ influxdb_http_port }}"
+    influxdb_version_fact: "{{ influxdb_version.stdout }}"

@@ -1,0 +1,6 @@
+---
+influxdb_installer_url: https://www.influxdata.com/d/install_influxdb3.sh
+influxdb_installer_script_path: /tmp/install_influxdb3.sh
+influxdb_install_root: "{{ ansible_env.HOME }}/.influxdb"
+influxdb_binary_path: "{{ influxdb_install_root }}/influxdb3"
+influxdb_http_port: 8181

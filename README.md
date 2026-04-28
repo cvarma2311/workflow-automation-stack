@@ -193,6 +193,8 @@ Ansible connects to your VMs via SSH. For a smooth, passwordless experience, it'
 
 This repository also contains a separate Docker Swarm automation flow under `ansible_swarm_setup/`.
 
+For the day-to-day Influx install, start, verify, and conflict commands, see `ansible_swarm_setup/INFLUX_QUICKSTART.md`.
+
 ```bash
 ansible-playbook -i ansible_swarm_setup/inventory.ini ansible_swarm_setup/setup_swarm.yml
 ```

@@ -1,0 +1,12 @@
+---
+- name: Install InfluxDB on the manager
+  hosts: managers
+  become: false
+  roles:
+    - role: influxdb_manager
+
+- name: Print InfluxDB connection details
+  hosts: managers
+  become: false
+  roles:
+    - role: influxdb_summary

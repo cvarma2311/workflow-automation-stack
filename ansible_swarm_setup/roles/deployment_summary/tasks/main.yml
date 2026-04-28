@@ -1,0 +1,49 @@
+---
+# tasks file for roles/deployment_summary
+
+- name: Select manager and storage hosts for the deployment summary
+  ansible.builtin.set_fact:
+    summary_manager_host: "{{ groups['managers'][0] }}"
+    summary_storage_host: "{{ (groups.get('storage', []) | first) | default(groups['managers'][0]) }}"
+  run_once: true
+
+- name: Print host details and connection commands
+  ansible.builtin.debug:
+    msg: |
+      Docker Swarm deployment summary
+
+      Managers:
+      {% for host in groups['managers'] %}
+      - {{ host }} | host={{ hostvars[host].ansible_host | default(host) }} | user={{ hostvars[host].ansible_user | default('ubuntu') }}{% if hostvars[host].ansible_ssh_private_key_file is defined %} | key={{ hostvars[host].ansible_ssh_private_key_file }}{% endif %}
+        ssh{% if hostvars[host].ansible_ssh_private_key_file is defined %} -i {{ hostvars[host].ansible_ssh_private_key_file }}{% endif %} {{ hostvars[host].ansible_user | default('ubuntu') }}@{{ hostvars[host].ansible_host | default(host) }}
+      {% endfor %}
+
+      Workers:
+      {% for host in groups.get('workers', []) %}
+      - {{ host }} | host={{ hostvars[host].ansible_host | default(host) }} | user={{ hostvars[host].ansible_user | default('ubuntu') }}{% if hostvars[host].ansible_ssh_private_key_file is defined %} | key={{ hostvars[host].ansible_ssh_private_key_file }}{% endif %}
+        ssh{% if hostvars[host].ansible_ssh_private_key_file is defined %} -i {{ hostvars[host].ansible_ssh_private_key_file }}{% endif %} {{ hostvars[host].ansible_user | default('ubuntu') }}@{{ hostvars[host].ansible_host | default(host) }}
+      {% else %}
+      - No worker nodes configured
+      {% endfor %}
+
+      Storage:
+      {% for host in groups.get('storage', []) %}
+      - {{ host }} | host={{ hostvars[host].ansible_host | default(host) }} | user={{ hostvars[host].ansible_user | default('ubuntu') }}{% if hostvars[host].ansible_ssh_private_key_file is defined %} | key={{ hostvars[host].ansible_ssh_private_key_file }}{% endif %}
+        ssh{% if hostvars[host].ansible_ssh_private_key_file is defined %} -i {{ hostvars[host].ansible_ssh_private_key_file }}{% endif %} {{ hostvars[host].ansible_user | default('ubuntu') }}@{{ hostvars[host].ansible_host | default(host) }}
+      {% else %}
+      - No dedicated storage node configured
+      {% endfor %}
+
+      Service endpoints:
+      - Prefect UI: http://{{ hostvars[summary_manager_host].ansible_host | default(summary_manager_host) }}:4200
+      - MinIO Console: http://{{ hostvars[summary_storage_host].ansible_host | default(summary_storage_host) }}:9001
+      - InfluxDB 3 API (after you start the server): {{ hostvars[summary_manager_host].influxdb_http_url_fact | default('http://' ~ (hostvars[summary_manager_host].ansible_host | default(summary_manager_host)) ~ ':8181') }}
+      - InfluxDB 3 binary: {{ hostvars[summary_manager_host].influxdb_binary_path_fact | default('~/.influxdb/influxdb3') }}
+      - InfluxDB 3 version: {{ hostvars[summary_manager_host].influxdb_version_fact | default('not detected') }}
+
+      Useful commands:
+      - ssh{% if hostvars[summary_manager_host].ansible_ssh_private_key_file is defined %} -i {{ hostvars[summary_manager_host].ansible_ssh_private_key_file }}{% endif %} {{ hostvars[summary_manager_host].ansible_user | default('ubuntu') }}@{{ hostvars[summary_manager_host].ansible_host | default(summary_manager_host) }} 'docker node ls'
+      - ssh{% if hostvars[summary_manager_host].ansible_ssh_private_key_file is defined %} -i {{ hostvars[summary_manager_host].ansible_ssh_private_key_file }}{% endif %} {{ hostvars[summary_manager_host].ansible_user | default('ubuntu') }}@{{ hostvars[summary_manager_host].ansible_host | default(summary_manager_host) }} 'docker service ls'
+      - ssh{% if hostvars[summary_manager_host].ansible_ssh_private_key_file is defined %} -i {{ hostvars[summary_manager_host].ansible_ssh_private_key_file }}{% endif %} {{ hostvars[summary_manager_host].ansible_user | default('ubuntu') }}@{{ hostvars[summary_manager_host].ansible_host | default(summary_manager_host) }} '{{ hostvars[summary_manager_host].influxdb_binary_path_fact | default("~/.influxdb/influxdb3") }} --version'
+      - ssh{% if hostvars[summary_manager_host].ansible_ssh_private_key_file is defined %} -i {{ hostvars[summary_manager_host].ansible_ssh_private_key_file }}{% endif %} {{ hostvars[summary_manager_host].ansible_user | default('ubuntu') }}@{{ hostvars[summary_manager_host].ansible_host | default(summary_manager_host) }} 'mkdir -p {{ hostvars[summary_manager_host].influxdb_install_root_fact | default("~/.influxdb") }}/logs && nohup {{ hostvars[summary_manager_host].influxdb_binary_path_fact | default("~/.influxdb/influxdb3") }} serve --node-id {{ summary_manager_host }} --http-bind 0.0.0.0:{{ hostvars[summary_manager_host].influxdb_http_port_fact | default(8181) }} --object-store file --data-dir {{ hostvars[summary_manager_host].influxdb_install_root_fact | default("~/.influxdb") }}/data > {{ hostvars[summary_manager_host].influxdb_install_root_fact | default("~/.influxdb") }}/logs/influxdb3.log 2>&1 &'
+  run_once: true

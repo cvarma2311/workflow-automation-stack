@@ -48,3 +48,6 @@ venv.bak/
 *.log
 *.swp
 *~
+
+# Local data
+/data/

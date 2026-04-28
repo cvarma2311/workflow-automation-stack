@@ -1,0 +1,33 @@
+---
+# tasks file for roles/influxdb_summary
+
+- name: Select the manager host for the InfluxDB summary
+  ansible.builtin.set_fact:
+    summary_manager_host: "{{ groups['managers'][0] }}"
+  run_once: true
+
+- name: Print InfluxDB host details and commands
+  ansible.builtin.debug:
+    msg: |
+      InfluxDB deployment summary
+
+      Managers:
+      {% for host in groups['managers'] %}
+      - {{ host }} | host={{ hostvars[host].ansible_host | default(host) }} | user={{ hostvars[host].ansible_user | default('ubuntu') }}{% if hostvars[host].ansible_ssh_private_key_file is defined %} | key={{ hostvars[host].ansible_ssh_private_key_file }}{% endif %}
+        ssh{% if hostvars[host].ansible_ssh_private_key_file is defined %} -i {{ hostvars[host].ansible_ssh_private_key_file }}{% endif %} {{ hostvars[host].ansible_user | default('ubuntu') }}@{{ hostvars[host].ansible_host | default(host) }}
+      {% endfor %}
+
+      InfluxDB details:
+      - API URL: {{ hostvars[summary_manager_host].influxdb_http_url_fact | default('http://' ~ (hostvars[summary_manager_host].ansible_host | default(summary_manager_host)) ~ ':8181') }}
+      - Binary: {{ hostvars[summary_manager_host].influxdb_binary_path_fact | default('~/.influxdb/influxdb3') }}
+      - Version: {{ hostvars[summary_manager_host].influxdb_version_fact | default('not detected') }}
+
+      Useful commands:
+      {% if hostvars[summary_manager_host].ansible_connection | default('ssh') == 'local' %}
+      - {{ hostvars[summary_manager_host].influxdb_binary_path_fact | default("~/.influxdb/influxdb3") }} --version
+      - mkdir -p {{ hostvars[summary_manager_host].influxdb_install_root_fact | default("~/.influxdb") }}/logs && nohup {{ hostvars[summary_manager_host].influxdb_binary_path_fact | default("~/.influxdb/influxdb3") }} serve --node-id {{ summary_manager_host }} --http-bind 0.0.0.0:{{ hostvars[summary_manager_host].influxdb_http_port_fact | default(8181) }} --object-store file --data-dir {{ hostvars[summary_manager_host].influxdb_install_root_fact | default("~/.influxdb") }}/data > {{ hostvars[summary_manager_host].influxdb_install_root_fact | default("~/.influxdb") }}/logs/influxdb3.log 2>&1 &
+      {% else %}
+      - ssh{% if hostvars[summary_manager_host].ansible_ssh_private_key_file is defined %} -i {{ hostvars[summary_manager_host].ansible_ssh_private_key_file }}{% endif %} {{ hostvars[summary_manager_host].ansible_user | default('ubuntu') }}@{{ hostvars[summary_manager_host].ansible_host | default(summary_manager_host) }} '{{ hostvars[summary_manager_host].influxdb_binary_path_fact | default("~/.influxdb/influxdb3") }} --version'
+      - ssh{% if hostvars[summary_manager_host].ansible_ssh_private_key_file is defined %} -i {{ hostvars[summary_manager_host].ansible_ssh_private_key_file }}{% endif %} {{ hostvars[summary_manager_host].ansible_user | default('ubuntu') }}@{{ hostvars[summary_manager_host].ansible_host | default(summary_manager_host) }} 'mkdir -p {{ hostvars[summary_manager_host].influxdb_install_root_fact | default("~/.influxdb") }}/logs && nohup {{ hostvars[summary_manager_host].influxdb_binary_path_fact | default("~/.influxdb/influxdb3") }} serve --node-id {{ summary_manager_host }} --http-bind 0.0.0.0:{{ hostvars[summary_manager_host].influxdb_http_port_fact | default(8181) }} --object-store file --data-dir {{ hostvars[summary_manager_host].influxdb_install_root_fact | default("~/.influxdb") }}/data > {{ hostvars[summary_manager_host].influxdb_install_root_fact | default("~/.influxdb") }}/logs/influxdb3.log 2>&1 &'
+      {% endif %}
+  run_once: true

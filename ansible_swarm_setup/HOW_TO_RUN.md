@@ -6,6 +6,8 @@ This guide provides detailed instructions on how to use the Ansible project in t
 
 The playbook automates everything from installing Docker on fresh Ubuntu VMs to deploying the final services. At the end of the run, it also prints the host inventory, SSH connection commands, service URLs, and the manager commands you are most likely to use next.
 
+For a compact Influx-only command reference, see `ansible_swarm_setup/INFLUX_QUICKSTART.md`.
+
 ## 2. Prerequisites
 
 Before you begin, ensure you have the following:
